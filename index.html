@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ocean Tower 504 — Acompanhamento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--ocean:#0A2A33;--ocean2:#0E4D5C;--teal:#1C7C8C;--mist:#EAF0F1;--paper:#F4F7F7;
+  --card:#FFFFFF;--ink:#13262B;--muted:#5C7178;--gold:#C2912E;--gold-soft:#F2E6CB;
+  --green:#2E7D52;--green-soft:#E2F0E8;--coral:#BF4A30;--coral-soft:#F8E3DC;--line:#DCE6E6}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+header{background:linear-gradient(135deg,var(--ocean),var(--ocean2));color:#fff;padding:30px 0 26px;position:relative;overflow:hidden}
+header::after{content:"";position:absolute;right:-60px;top:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(194,145,46,.18),transparent 70%)}
+.eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#9FC4CB;font-weight:600}
+header h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(24px,4vw,36px);line-height:1.05;margin:6px 0 4px}
+header h1 .num{color:var(--gold)}
+.sub{color:#C5D9DC;font-size:14.5px;max-width:680px}
+.stamp{position:absolute;top:18px;right:20px;font-size:12px;color:#9FC4CB;text-align:right}
+.alert{background:var(--coral-soft);border:1px solid #E8B8A8;border-radius:12px;padding:12px 16px;margin-top:18px;display:none}
+.alert.show{display:block}
+.alert b{color:var(--coral)}
+.alert .big{font-weight:700;color:var(--coral)}
+.banner{background:var(--gold-soft);border:1px solid #E6D2A2;border-radius:12px;padding:12px 16px;margin-top:14px;display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.banner.show{display:flex}
+.banner span{font-size:13.5px;color:#6b531a;font-weight:500}.banner b{color:#4d3c12}
+.dlbtn{background:var(--gold);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.controls{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-top:14px;box-shadow:0 8px 30px rgba(10,42,51,.06)}
+.controls h2{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
+.obsline{font-size:13px;color:var(--ink);margin-bottom:12px}
+.obsline b{color:var(--ocean2);font-family:'Fraunces',serif}
+.toggle{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px}
+.toggle input{width:16px;height:16px;accent-color:var(--teal)}
+.sliders{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 22px}
+.sl label{display:flex;justify-content:space-between;font-size:12.5px;font-weight:500;margin-bottom:5px}
+.sl .val{font-family:'Fraunces',serif;font-weight:600;font-size:15px;color:var(--ocean2)}
+.sl.muted{opacity:.45}
+.sl input[type=range]{width:100%;-webkit-appearance:none;height:5px;border-radius:5px;background:var(--mist);outline:none}
+.sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--teal);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin:18px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 17px}
+.kpi .k-label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(20px,2.6vw,27px);margin-top:5px;line-height:1}
+.kpi .k-sub{font-size:11.5px;color:var(--muted);margin-top:4px}
+.kpi.accent{background:linear-gradient(160deg,#fff,var(--gold-soft));border-color:var(--gold-soft)}
+.kpi.accent .k-val{color:var(--gold)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px}
+.panel h3{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-bottom:2px}
+.panel .desc{font-size:12px;color:var(--muted);margin-bottom:14px}
+.chart-box{position:relative;height:260px}
+.thermo-panel{background:linear-gradient(135deg,var(--ocean),var(--ocean2));color:#fff;border:none}
+.thermo-panel h3{color:#fff}.thermo-panel .desc{color:#A9CAD0}
+.thermo{margin:30px 0 8px;position:relative;height:13px;border-radius:8px;background:linear-gradient(90deg,#2E7D52,#C2912E 55%,#BF4A30)}
+.thermo .marker{position:absolute;top:-9px;width:4px;height:31px;background:#fff;border-radius:2px;box-shadow:0 0 0 2px rgba(0,0,0,.25);transition:left .4s ease}
+.thermo .flag{position:absolute;top:-44px;transform:translateX(-50%);background:#fff;color:var(--ocean);font-family:'Fraunces',serif;font-weight:600;font-size:13px;padding:3px 9px;border-radius:7px;white-space:nowrap;transition:left .4s ease}
+.thermo .flag::after{content:"";position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#fff}
+.thermo-scale{display:flex;justify-content:space-between;font-size:11px;color:#A9CAD0;margin-top:9px}
+.thermo-scale b{color:#fff}
+.sim-panel{background:linear-gradient(160deg,#fff,#FBF4E6);border-color:#EADFC4}
+.sim-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+.sim-row .f{display:flex;flex-direction:column;gap:4px}
+.sim-row label{font-size:11px;color:var(--muted);font-weight:600}
+.sim-row select,.sim-row input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit}
+.sim-out{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sim-out .b{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+.sim-out .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.sim-out .v{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-top:3px}
+.sim-out .v.extra{color:var(--coral)}
+.tbl-wrap{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+table.pg{width:100%;border-collapse:collapse;font-size:12.5px;min-width:900px}
+table.pg th{position:sticky;top:0;background:var(--ocean);color:#fff;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:8px 9px;text-align:left;z-index:2}
+table.pg td{padding:6px 9px;border-bottom:1px solid var(--line)}
+table.pg tr.paga{background:var(--green-soft)}
+table.pg tr.aporte{background:var(--gold-soft)}
+table.pg tr.vencida{background:var(--coral-soft)}
+table.pg input{width:92px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:inherit;font-variant-numeric:tabular-nums}
+table.pg input.dt{width:120px}
+.proj{color:var(--muted)}
+td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
+.vpl-panel{background:linear-gradient(160deg,#fff,#EAF2F0);border-color:#CFE3DD}
+.vpl-panel .v.pos{color:var(--green)}.vpl-panel .v.neg{color:var(--coral)}
+.incc-ok{color:var(--green);font-weight:600}.incc-bad{color:var(--coral);font-weight:600}
+.vtag{font-size:10px;color:var(--coral);font-weight:700;display:block}
+.addbar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.addbar .f{display:flex;flex-direction:column;gap:3px}
+.addbar label{font-size:11px;color:var(--muted);font-weight:600}
+.addbar input{padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit}
+.btn{background:var(--teal);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--ocean2)}
+.btn.ghost{background:none;color:var(--teal);padding:6px 0}
+.badge{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:20px;background:var(--mist);color:var(--ocean2)}
+footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
+footer b{color:var(--ink)}
+@media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="stamp" id="stamp"></div>
+    <div class="eyebrow">Ocean Tower · unidade 504 · Paim &amp; Duduzinho</div>
+    <h1>Acompanhamento real <span class="num">×</span> projetado</h1>
+    <p class="sub">O INCC é deduzido do próprio boleto pago — sem depender de fonte externa. Registre o valor pago e, se atrasar, os juros e a multa.</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="alert" id="alert"></div>
+  <div class="banner" id="banner">
+    <span>✏️ Há <b>alterações não publicadas</b>. Baixe o arquivo, substitua o <b>dados.json</b> no repositório e dê <b>push</b> no GitHub Desktop.</span>
+    <button class="dlbtn" id="dlBtn">⬇ Baixar dados.json</button>
+  </div>
+
+  <div class="controls">
+    <h2>Projeção do que ainda falta pagar</h2>
+    <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
+    <label class="toggle"><input type="checkbox" id="useObs" checked> Usar o INCC real que já paguei (recomendado). Desmarque para simular um cenário "e se".</label>
+    <div class="sliders">
+      <div class="sl" id="slIncc"><label>INCC a.a. — "e se" <span class="val" id="vIncc">6,7%</span></label><input type="range" id="incc" min="3" max="12" step="0.1" value="6.7"></div>
+      <div class="sl"><label>Valorização a.a. <span class="val" id="vVal">4,0%</span></label><input type="range" id="val" min="0" max="10" step="0.5" value="4"></div>
+      <div class="sl"><label>CDI a.a. <span class="val" id="vCdi">14,3%</span></label><input type="range" id="cdi" min="8" max="16" step="0.05" value="14.25"></div>
+      <div class="sl"><label>Aluguel mensal <span class="val" id="vAlu">R$ 1.700</span></label><input type="range" id="alu" min="800" max="3000" step="50" value="1700"></div>
+    </div>
+    <div class="obsline" id="cdiFonte" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi accent"><div class="k-label">All-in atual (real + projeção)</div><div class="k-val" id="kAllin">—</div><div class="k-sub" id="kAllinSub"></div></div>
+    <div class="kpi"><div class="k-label">Já pago (real)</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub"></div></div>
+    <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub"></div></div>
+    <div class="kpi"><div class="k-label">INCC pago acumulado</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção real embutida</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Realizado × projetado <span class="badge">acumulado</span></h3>
+      <p class="desc">Pago efetivo contra a curva projetada (projeção ancorada no INCC real).</p>
+      <div class="chart-box"><canvas id="cAcum"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Por ano</h3>
+      <p class="desc">Desembolso realizado e projetado, ano a ano (total da unidade).</p>
+      <div class="chart-box"><canvas id="cAno"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Parcelas <span class="badge" id="cntPagas">0 pagas</span></h3>
+    <p class="desc"><b>Valor pago</b> e <b>data</b> de cada boleto. Se atrasou, preencha <b>juros</b> e <b>multa</b> — o resto vira INCC automaticamente.</p>
+    <div class="tbl-wrap"><table class="pg"><thead><tr>
+      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>INCC embutido</th>
+    </tr></thead><tbody id="tbody"></tbody></table></div>
+    <div class="addbar">
+      <div class="f"><label>Novo aporte — descrição</label><input id="apObs" placeholder="Ex.: revisão de orçamento 2027/1"></div>
+      <div class="f"><label>Data</label><input id="apData" type="date"></div>
+      <div class="f"><label>Valor (R$)</label><input id="apVal" type="number" step="0.01" placeholder="0,00"></div>
+      <button class="btn" id="apBtn" style="margin:0">+ Registrar aporte</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Composição do all-in atual</h3>
+      <p class="desc">Real pago, projeção do saldo, aportes e custos de entrada.</p>
+      <div class="chart-box"><canvas id="cComp"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Retorno × custo do dinheiro</h3>
+      <p class="desc">Yield do aluguel contra o CDI líquido (a.a.).</p>
+      <div class="chart-box"><canvas id="cRet"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel vpl-panel">
+    <h3>Custo do dinheiro <span class="badge">vale mais que o CDI?</span></h3>
+    <p class="desc">O capital que você imobiliza aqui poderia render no CDI líquido (~95%, isento). Aqui está o "preço" de imobilizar — e quanto o imóvel precisa valorizar só para empatar com a renda fixa.</p>
+    <div class="sim-out">
+      <div class="b"><div class="l">Sai do bolso (total)</div><div class="v" id="cdTotal">—</div></div>
+      <div class="b"><div class="l">Custo de oportunidade</div><div class="v" id="cdCusto">—</div></div>
+      <div class="b"><div class="l">Break-even na entrega</div><div class="v" id="cdBreak">—</div></div>
+      <div class="b"><div class="l">Valorização a.a. p/ empatar</div><div class="v" id="cdValoriz">—</div></div>
+    </div>
+    <p class="desc" id="cdComp" style="margin-top:12px;font-size:12.5px;padding:10px 12px;background:rgba(28,124,140,.06);border-radius:8px;line-height:1.6"></p>
+    <p class="desc" id="cdVeredito" style="margin-top:10px;font-size:13px"></p>
+  </div>
+
+  <button class="btn ghost" id="reload">↻ Recarregar do repositório (descarta rascunho local)</button>
+
+  <footer>
+    <b>Como o INCC é calculado.</b> Em dia: INCC = valor pago − base. Atrasado: você informa juros e multa, e INCC = pago − base − juros − multa. A projeção do que falta usa a taxa mensal média que você realmente pagou (ou o slider, no modo "e se"). <b>All-in</b> = real pago + projeção do saldo + aportes + ITBI/registro (3,3% s/ R$ 456.010) + ambientação (R$ 12.000).<br>
+    <b>Material de apoio à decisão</b> — não é recomendação de investimento.
+  </footer>
+</div>
+
+<script>
+const BRL=(n,d=0)=>'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const PCT=(n,d=1)=>(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
+const $=id=>document.getElementById(id);
+const GLOBAL=39184099.17,COEF=0.0119,PARTICIP=GLOBAL*COEF,APTO=456009.87,AREA=47.41;
+const ITBI=0.02,REG=0.013,AMB=12000,ENTRADA=(ITBI+REG)*APTO,MANUT=0.20,IPTU=1400,PV=0.50,PCDI=0.95;
+const M2BASE=10000,ENTREGA=new Date('2031-07-01'),T0=new Date('2026-06-01');
+const nOf=v=>(parseInt(v.slice(0,4))-2026)*12+(parseInt(v.slice(5,7))-6);
+const num=x=>x==null||x===''?0:(+x||0);
+
+function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const add=(ref,tipo,v,b)=>a.push({id:id++,ref,tipo,vencimento:v,valor_base:b,valor_pago:null,data_pagamento:null,juros:null,multa:null,obs:null});
+  [[2026,6],[2026,7],[2026,8]].forEach((x,i)=>add('Sinal '+(i+1),'sinal',d(x[0],x[1],30),23750.53));
+  let y=2026,m=9;for(let i=0;i<55;i++){add('Mensal '+(i+1),'mensal',d(y,m,11),3454.62);m++;if(m>12){m=1;y++;}}
+  [[2026,11],[2027,5],[2027,11],[2028,5],[2028,11],[2029,5],[2029,11]].forEach((x,i)=>add('Semestral '+(i+1),'semestral',d(x[0],x[1],1),30536.37));
+  return a;}
+
+let state={atualizado_em:null,itens:[]},dirty=false,charts={};
+const LS='ot504_data_v2';
+
+async function bootstrap(){
+  initCharts();
+  let repo=null;try{const r=await fetch('dados.json?'+Date.now());if(r.ok)repo=await r.json();}catch(e){}
+  const local=localStorage.getItem(LS);let loaded=null;
+  if(local){const lj=JSON.parse(local);
+    if(repo&&repo.atualizado_em&&lj.atualizado_em&&new Date(repo.atualizado_em)>=new Date(lj.atualizado_em)){loaded=repo;localStorage.removeItem(LS);dirty=false;}
+    else{loaded=lj;dirty=true;}}
+  else if(repo)loaded=repo; else loaded={atualizado_em:null,itens:genItens()};
+  if(!loaded.itens||!loaded.itens.length)loaded.itens=genItens();
+  loaded.itens.forEach(it=>{if(it.juros===undefined)it.juros=null;if(it.multa===undefined)it.multa=null;});
+  state=loaded;
+  ['incc','val','cdi','alu'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
+  $('useObs').addEventListener('change',render);
+  $('dlBtn').onclick=download;$('apBtn').onclick=addAporte;
+  $('reload').onclick=()=>{localStorage.removeItem(LS);location.reload();};
+  try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (Selic meta): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
+  render();
+}
+function markDirty(){dirty=true;state.atualizado_em=new Date().toISOString();localStorage.setItem(LS,JSON.stringify(state));updateBanner();updateStamp();}
+function updateBanner(){$('banner').classList.toggle('show',dirty);}
+function updateStamp(){$('stamp').innerHTML=state.atualizado_em?(dirty?'rascunho local · '+fmtDT(state.atualizado_em):'publicado · '+fmtDT(state.atualizado_em)):'novo — ainda não publicado';}
+function fmtDT(s){const d=new Date(s);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+function download(){state.atualizado_em=new Date().toISOString();
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='dados.json';a.click();
+  dirty=false;localStorage.setItem(LS,JSON.stringify(state));updateBanner();updateStamp();}
+function addAporte(){const v=parseFloat($('apVal').value),dt=$('apData').value,obs=$('apObs').value.trim();
+  if(!v||v<=0){alert('Informe o valor do aporte.');return;}
+  const nap=state.itens.filter(i=>i.tipo==='aporte').length+1;const id=Math.max(0,...state.itens.map(i=>i.id))+1;
+  state.itens.push({id,ref:'Aporte '+nap,tipo:'aporte',vencimento:dt||null,valor_base:0,valor_pago:v,data_pagamento:dt||null,juros:null,multa:null,obs:obs||null});
+  $('apVal').value='';$('apObs').value='';$('apData').value='';markDirty();render();}
+
+function sv(){return{incc:+$('incc').value/100,val:+$('val').value/100,cdi:+$('cdi').value/100,alu:+$('alu').value};}
+
+function inccObs(){
+  const taxas=[];let somaIncc=0;
+  state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago!=null).forEach(r=>{
+    const incc=num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa);
+    somaIncc+=incc;const n=nOf(r.vencimento);
+    if(n>=1&&r.valor_base>0&&incc>-r.valor_base){taxas.push(Math.pow(1+incc/r.valor_base,1/n)-1);}
+  });
+  const tm=taxas.length?taxas.reduce((a,b)=>a+b,0)/taxas.length:null;
+  return {mensal:tm,anual:tm!=null?Math.pow(1+tm,12)-1:null,nObs:taxas.length,somaIncc};
+}
+function taxaProjMensal(){const s=sv(),o=inccObs();
+  if($('useObs').checked&&o.mensal!=null)return o.mensal;
+  return Math.pow(1+s.incc,1/12)-1;}
+
+function compute(){
+  const s=sv(),imP=taxaProjMensal();
+  let pagoReg=0,projRest=0,projPagas=0,aportes=0;
+  const parc=state.itens.filter(r=>r.tipo!=='aporte');
+  parc.forEach(r=>{const n=nOf(r.vencimento);const proj=r.valor_base*Math.pow(1+imP,n);
+    if(r.valor_pago!=null){pagoReg+=num(r.valor_pago);projPagas+=proj;}else projRest+=proj;});
+  state.itens.filter(r=>r.tipo==='aporte').forEach(r=>aportes+=num(r.valor_pago));
+  const allin=pagoReg+projRest+aportes+ENTRADA+AMB;const o=inccObs();
+  return {s,imP,parc,pagoReg,projRest,aportes,allin,jaPago:pagoReg+aportes,
+    falta:allin-(pagoReg+aportes),custoM2:allin/AREA,inccPago:o.somaIncc,obs:o};
+}
+
+const gridc='#ECF1F1';
+function initCharts(){
+  Chart.defaults.font.family="Inter";Chart.defaults.font.size=12;Chart.defaults.color='#5C7178';
+  charts.acum=new Chart($('cAcum'),{data:{labels:[],datasets:[
+    {type:'line',label:'Projetado',data:[],borderColor:'#9FB7BC',borderDash:[5,4],fill:false,tension:.25,pointRadius:0},
+    {type:'line',label:'Realizado',data:[],borderColor:'#1C7C8C',backgroundColor:'rgba(28,124,140,.12)',fill:true,tension:.25,pointRadius:0}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}}},
+      scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
+  charts.ano=new Chart($('cAno'),{type:'bar',data:{labels:[],datasets:[
+    {label:'Realizado',data:[],backgroundColor:'#1C7C8C',borderRadius:3},
+    {label:'Projetado',data:[],backgroundColor:'#CBD8DA',borderRadius:3}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
+  charts.comp=new Chart($('cComp'),{type:'doughnut',data:{labels:['Pago real','Projeção saldo','Aportes','Entrada','Ambientação'],
+    datasets:[{data:[],backgroundColor:['#1C7C8C','#9FB7BC','#C2912E','#0E4D5C','#BF4A30'],borderWidth:2,borderColor:'#fff'}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)}}}}});
+  charts.ret=new Chart($('cRet'),{type:'bar',data:{labels:['Yield bruto','Yield líquido','CDI líquido'],
+    datasets:[{data:[],backgroundColor:['#1C7C8C','#2E7D52','#C2912E'],borderRadius:4}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>PCT(c.parsed.y,2)+' a.a.'}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>v+'%'}}}}});
+}
+
+function render(){
+  const c=compute(),s=c.s;
+  $('vIncc').textContent=PCT(s.incc*100,1);$('vVal').textContent=PCT(s.val*100,1);
+  $('vCdi').textContent=PCT(s.cdi*100,1);$('vAlu').textContent=BRL(s.alu);
+  if(c.obs.anual!=null){$('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> (média de '+c.obs.nObs+' parcela'+(c.obs.nObs>1?'s':'')+' paga'+(c.obs.nObs>1?'s':'')+')'+($('useObs').checked?' — em uso na projeção':' — slider em uso');}
+  else $('obsLine').innerHTML='INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)';
+  $('slIncc').classList.toggle('muted',$('useObs').checked&&c.obs.mensal!=null);
+  $('kAllin').textContent=BRL(c.allin);$('kAllinSub').textContent='sua parte: '+BRL(c.allin*PV);
+  $('kPago').textContent=BRL(c.jaPago);$('kPagoSub').textContent=PCT(c.allin?c.jaPago/c.allin*100:0,0)+' do all-in';
+  const npagas=c.parc.filter(r=>r.valor_pago!=null).length;
+  $('kFalta').textContent=BRL(c.falta);$('kFaltaSub').textContent=(c.parc.length-npagas)+' parcelas a pagar';
+  $('kIncc').textContent=BRL(c.inccPago);
+  $('cntPagas').textContent=npagas+' pagas';
+  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);updateBanner();updateStamp();
+}
+
+function renderAlert(){
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const venc=state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago==null&&r.vencimento&&new Date(r.vencimento+'T00:00:00')<hoje);
+  const el=$('alert');
+  if(!venc.length){el.classList.remove('show');return;}
+  el.classList.add('show');
+  if(venc.length>=2)el.innerHTML='<span class="big">⚠ Risco de exclusão.</span> Há <b>'+venc.length+' parcelas vencidas</b> e não pagas. Pelo contrato (cláusula 10), <b>2 parcelas em atraso</b> já autorizam a exclusão da unidade — regularize com prioridade máxima. A multa é o menor problema aqui.';
+  else el.innerHTML='<b>⚠ 1 parcela vencida</b> e não paga ('+venc[0].ref+', venc. '+venc[0].vencimento.split('-').reverse().join('/')+'). Atenção: com 2 em atraso, o contrato autoriza exclusão.';
+}
+
+function renderTable(c){
+  const tb=$('tbody');tb.innerHTML='';
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const sorted=[...state.itens].sort((a,b)=>(a.vencimento||'9999').localeCompare(b.vencimento||'9999'));
+  sorted.forEach(r=>{
+    const isAp=r.tipo==='aporte';
+    const vencida=!isAp&&r.valor_pago==null&&r.vencimento&&new Date(r.vencimento+'T00:00:00')<hoje;
+    const incc=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa):null;
+    const meio=r.valor_base/2;
+    const tr=document.createElement('tr');tr.className=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));
+    tr.innerHTML=`<td><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}</td>
+      <td>${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
+      <td class="proj">${isAp?'—':BRL(r.valor_base,0)}</td>
+      <td class="metade">${isAp?'—':BRL(meio,0)}</td>
+      <td><input type="number" step="0.01" value="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—"></td>
+      <td><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento"></td>
+      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0">'}</td>
+      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0">'}</td>
+      <td>${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{
+    const id=+inp.dataset.id,f=inp.dataset.f;let v=inp.value;
+    v=(f==='data_pagamento')?(v||null):(v===''?null:parseFloat(v));
+    const row=state.itens.find(x=>x.id===id);if(row)row[f]=v;markDirty();render();
+  }));
+}
+
+function renderCharts(c){
+  const im=c.imP,s=c.s;
+  const evs=[...state.itens].filter(r=>r.vencimento).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+  const labels=[],pA=[],rA=[];let pa=0,ra=0;
+  evs.forEach(r=>{const proj=r.tipo==='aporte'?num(r.valor_pago):r.valor_base*Math.pow(1+im,nOf(r.vencimento));
+    pa+=proj;labels.push(r.vencimento.slice(2,7).split('-').reverse().join('/'));
+    if(r.valor_pago!=null){ra+=num(r.valor_pago);rA.push(ra);}else rA.push(null);pA.push(pa);});
+  charts.acum.data.labels=labels;charts.acum.data.datasets[0].data=pA;charts.acum.data.datasets[1].data=rA;charts.acum.update();
+  const years=[2026,2027,2028,2029,2030,2031],real={},proj={};years.forEach(y=>{real[y]=0;proj[y]=0;});
+  state.itens.forEach(r=>{if(!r.vencimento)return;const y=+r.vencimento.slice(0,4);if(!years.includes(y))return;
+    const pj=r.tipo==='aporte'?num(r.valor_pago):r.valor_base*Math.pow(1+im,nOf(r.vencimento));
+    proj[y]+=pj;if(r.valor_pago!=null)real[y]+=num(r.valor_pago);});
+  charts.ano.data.labels=years;charts.ano.data.datasets[0].data=years.map(y=>real[y]);charts.ano.data.datasets[1].data=years.map(y=>proj[y]);charts.ano.update();
+  charts.comp.data.datasets[0].data=[c.pagoReg,c.projRest,c.aportes,ENTRADA,AMB];charts.comp.update();
+  const yB=(s.alu*12)/c.allin*100,yL=(s.alu*12*(1-MANUT)-IPTU)/c.allin*100,cdiLiq=s.cdi*PCDI*100;
+  charts.ret.data.datasets[0].data=[yB,yL,cdiLiq];charts.ret.update();
+}
+
+function yearsBetween(a,b){return (b-a)/(365.25*24*3600*1000);}
+function flowDate(r){const d=r.data_pagamento||r.vencimento;return d?new Date(d):T0;}
+function npv(rate,flows){return flows.reduce((s,f)=>s+f.cf/Math.pow(1+rate,f.t),0);}
+function irr(flows){let lo=-0.9,hi=2,fl=npv(lo,flows),fh=npv(hi,flows);
+  if(fl*fh>0)return null;
+  for(let i=0;i<200;i++){const mid=(lo+hi)/2,fm=npv(mid,flows);
+    if(Math.abs(fm)<1)return mid; if(fl*fm<0){hi=mid;}else{lo=mid;fl=fm;}}
+  return (lo+hi)/2;}
+function renderCusto(c){
+  const s=c.s,cdiLiq=s.cdi*PCDI,anosE=yearsBetween(T0,ENTREGA);
+  let totalNom=0,vfCDI=0,nominalParc=0,pagoOuProj=0,aportesTot=0;const flows=[];
+  state.itens.forEach(r=>{
+    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);
+      aportesTot+=val;totalNom+=val;vfCDI+=val*Math.pow(1+cdiLiq,Math.max(0,yearsBetween(d,ENTREGA)));flows.push({t:yearsBetween(T0,d),cf:-val});}return;}
+    const val=r.valor_pago!=null?num(r.valor_pago):r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
+    const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
+    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfCDI+=val*Math.pow(1+cdiLiq,Math.max(0,yearsBetween(d,ENTREGA)));flows.push({t:yearsBetween(T0,d),cf:-val});
+  });
+  totalNom+=ENTRADA+AMB;vfCDI+=ENTRADA+AMB;flows.push({t:anosE,cf:-(ENTRADA+AMB)});
+  const correcaoParc=pagoOuProj-nominalParc;
+  let comp='<b>Composição do que sai do bolso:</b> nominal '+BRL(nominalParc)+' + INCC '+BRL(correcaoParc);
+  if(aportesTot>0)comp+=' + aportes '+BRL(aportesTot);
+  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(totalNom)+'</b>';
+  $('cdComp').innerHTML=comp;
+  const custoOp=vfCDI-totalNom,valorHoje=M2BASE*AREA,breakeven=vfCDI;
+  const valorizNec=Math.pow(breakeven/valorHoje,1/anosE)-1;
+  const valorEntrega=valorHoje*Math.pow(1+s.val,anosE);
+  const flows2=flows.slice();flows2.push({t:anosE,cf:valorEntrega});
+  const vpl=npv(cdiLiq,flows2),tir=irr(flows2);
+  $('cdTotal').textContent=BRL(totalNom);
+  $('cdCusto').textContent=BRL(custoOp);
+  $('cdBreak').textContent=BRL(breakeven);
+  const vz=$('cdValoriz');vz.textContent=PCT(valorizNec*100,1)+' a.a.';
+  const provavel=s.val,ok=provavel>=valorizNec;vz.className='v '+(ok?'pos':'neg');
+  let txt;
+  if(ok)txt='Com a valorização que você projeta ('+PCT(provavel*100,1)+' a.a.), o imóvel <b>supera o CDI</b> — precisa de '+PCT(valorizNec*100,1)+' a.a. para empatar e você espera mais que isso.';
+  else txt='Para empatar com o CDI, o imóvel precisa valorizar <b>'+PCT(valorizNec*100,1)+' a.a.</b> (valer '+BRL(breakeven)+' na entrega). Você projeta '+PCT(provavel*100,1)+' a.a.: abaixo disso, o <b>CDI ganha</b>.';
+  $('cdVeredito').innerHTML='<b>Leitura:</b> '+txt+' <span style="color:var(--muted)">No seu cenário de valorização: VPL '+(vpl>=0?'+':'−')+BRL(Math.abs(vpl))+' · TIR '+(tir!=null?PCT(tir*100,1):'—')+' · custo de oportunidade do capital '+BRL(custoOp)+' (CDI líquido '+PCT(cdiLiq*100,1)+'). Valores totais da unidade; sua parte é a metade.</span>';
+}
+
+bootstrap();
+</script>
+</body>
+</html>
