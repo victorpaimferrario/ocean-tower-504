@@ -100,6 +100,14 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 .btn:hover{background:var(--ocean2)}
 .btn.ghost{background:none;color:var(--teal);padding:6px 0}
 .badge{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:20px;background:var(--mist);color:var(--ocean2)}
+.addbar select{padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;background:#fff}
+.addbar input[type=file]{padding:6px 4px;font-size:12px}
+.docbtn{padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;margin-right:5px}
+.docbtn:hover{background:var(--mist)}
+.docbtn.del{color:var(--coral);border-color:var(--coral-soft)}
+.docbtn.del:hover{background:var(--coral-soft)}
+.lockmsg{font-size:13px;color:var(--muted);padding:14px 16px;background:var(--mist);border-radius:10px}
+table.pg td .cat{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--gold-soft);color:var(--gold)}
 footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
 footer b{color:var(--ink)}
 @media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}}
@@ -197,6 +205,53 @@ footer b{color:var(--ink)}
     <p class="desc" id="cdVeredito" style="margin-top:10px;font-size:13px"></p>
   </div>
 
+  <div class="panel" id="docsCard">
+    <h3>📎 Documentos <span class="badge" id="docsCount">—</span></h3>
+    <p class="desc">Boletos, comprovantes e documentos do negócio, guardados em cofre privado. Só você e o Dudu (logados) têm acesso.</p>
+
+    <div class="lockmsg" id="docsLocked" style="display:none">🔒 Entre para editar (botão acima) para ver e anexar os documentos.</div>
+
+    <div id="docsArea" style="display:none">
+      <div class="addbar">
+        <div class="f"><label>Categoria</label>
+          <select id="docCat">
+            <option value="boleto">Boleto</option>
+            <option value="comprovante">Comprovante</option>
+            <option value="contrato">Contrato</option>
+            <option value="memorial">Memorial</option>
+            <option value="matricula">Matrícula</option>
+            <option value="analise">Análise</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="f"><label>Parcela (opcional)</label><select id="docParcela"></select></div>
+        <div class="f" style="flex:1;min-width:160px"><label>Título</label><input id="docTitulo" placeholder="Ex.: Boleto sinal 1"></div>
+        <div class="f"><label>Arquivo</label><input id="docFile" type="file"></div>
+        <button class="btn" id="docBtn" style="margin:0">+ Anexar</button>
+      </div>
+
+      <div class="addbar" style="border-top:none;padding-top:4px;margin-top:4px">
+        <div class="f"><label>Filtrar por categoria</label>
+          <select id="fCat">
+            <option value="">todas</option>
+            <option value="boleto">Boleto</option>
+            <option value="comprovante">Comprovante</option>
+            <option value="contrato">Contrato</option>
+            <option value="memorial">Memorial</option>
+            <option value="matricula">Matrícula</option>
+            <option value="analise">Análise</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="f"><label>Filtrar por parcela</label><select id="fParcela"></select></div>
+      </div>
+
+      <div class="tbl-wrap" style="margin-top:12px;max-height:360px"><table class="pg"><thead><tr>
+        <th>Título</th><th>Categoria</th><th>Parcela</th><th>Quem subiu</th><th>Data</th><th>Ações</th>
+      </tr></thead><tbody id="docsBody"></tbody></table></div>
+    </div>
+  </div>
+
   <footer>
     <b>Como o INCC é calculado.</b> Em dia: INCC = valor pago − base. Atrasado: você informa juros e multa, e INCC = pago − base − juros − multa. A projeção do que falta usa a taxa mensal média que você realmente pagou (ou o slider, no modo "e se"). <b>All-in</b> = real pago + projeção do saldo + aportes + ITBI/registro (3,3% s/ R$ 456.010) + ambientação (R$ 12.000).<br>
     <b>Material de apoio à decisão</b> — não é recomendação de investimento.
@@ -220,7 +275,9 @@ function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).pad
   [[2026,11],[2027,5],[2027,11],[2028,5],[2028,11],[2029,5],[2029,11]].forEach((x,i)=>add('Semestral '+(i+1),'semestral',d(x[0],x[1],1),30536.37));
   return a;}
 
-let state={itens:[]},charts={},canEdit=false;
+let state={itens:[]},charts={},canEdit=false,docs=[],currentEmail=null;
+const BUCKET='ocean504-anexos';
+const CAT_LABEL={boleto:'Boleto',comprovante:'Comprovante',contrato:'Contrato',memorial:'Memorial',matricula:'Matrícula',analise:'Análise',outro:'Outro'};
 const SB_URL='https://aipgtnvflezqnhzbpxam.supabase.co';
 const SB_KEY='sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf';
 const EDITORES=['victorpaim@pasf.com.br','eduardodeabreuls@gmail.com'];
@@ -230,16 +287,23 @@ async function bootstrap(){
   initCharts();
   const {data:{session}}=await sb.auth.getSession();
   canEdit=!!(session&&session.user&&EDITORES.includes(session.user.email));
-  sb.auth.onAuthStateChange((_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));updateAuthUI();render();});
+  currentEmail=session&&session.user?session.user.email:null;
+  sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
   await loadFromDB();
   ['incc','val','cdi','alu'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
   $('useObs').addEventListener('change',render);
   $('apBtn').onclick=addAporte;
   $('authBtn').onclick=onAuthClick;
+  $('docBtn').onclick=uploadDoc;
+  $('fCat').onchange=renderDocs;
+  $('fParcela').onchange=renderDocs;
+  fillParcelaSelects();
+  await loadDocs();
   try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (Selic meta): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
   $('stamp').textContent='🟢 dados ao vivo (Supabase)';
   updateAuthUI();
   render();
+  renderDocs();
 }
 
 async function loadFromDB(){
@@ -293,6 +357,89 @@ function updateAuthUI(){
   if(canEdit){st.innerHTML='✏️ <b>Modo edição</b> — suas alterações salvam sozinhas';btn.textContent='Sair';}
   else{st.innerHTML='🔒 <b>Somente leitura</b> — o Dudu e os demais só consultam';btn.textContent='Entrar para editar';}
   document.querySelectorAll('.addbar input, #apBtn').forEach(el=>el.disabled=!canEdit);
+}
+
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function fillParcelaSelects(){
+  const reais=state.itens.filter(i=>i.tipo!=='aporte');
+  const up='<option value="">— nenhuma —</option>'+reais.map(i=>`<option value="${i.id}">${esc(i.ref)}</option>`).join('');
+  const fl='<option value="">todas</option>'+reais.map(i=>`<option value="${i.id}">${esc(i.ref)}</option>`).join('');
+  if($('docParcela'))$('docParcela').innerHTML=up;
+  if($('fParcela'))$('fParcela').innerHTML=fl;
+}
+
+async function loadDocs(){
+  if(!canEdit){docs=[];return;}
+  const {data,error}=await sb.from('ocean504_docs').select('*').order('created_at',{ascending:false});
+  if(error){console.error(error);docs=[];return;}
+  docs=data||[];
+}
+
+function renderDocs(){
+  const locked=$('docsLocked'),area=$('docsArea'),cnt=$('docsCount');
+  if(!canEdit){locked.style.display='';area.style.display='none';cnt.textContent='🔒';return;}
+  locked.style.display='none';area.style.display='';
+  const fc=$('fCat').value,fp=$('fParcela').value;
+  let list=docs.slice();
+  if(fc)list=list.filter(d=>d.categoria===fc);
+  if(fp)list=list.filter(d=>String(d.parcela_id)===fp);
+  cnt.textContent=docs.length+' arquivo'+(docs.length===1?'':'s');
+  const pref={};state.itens.forEach(i=>pref[i.id]=i.ref);
+  $('docsBody').innerHTML=list.length?list.map(d=>{
+    const par=d.parcela_id?esc(pref[d.parcela_id]||('#'+d.parcela_id)):'—';
+    const dt=d.created_at?new Date(d.created_at).toLocaleDateString('pt-BR'):'';
+    const quem=esc((d.enviado_por||'').split('@')[0]);
+    return `<tr>
+      <td>${esc(d.titulo)}</td>
+      <td><span class="cat">${CAT_LABEL[d.categoria]||esc(d.categoria)}</span></td>
+      <td>${par}</td>
+      <td>${quem}</td>
+      <td>${dt}</td>
+      <td style="white-space:nowrap">
+        <button class="docbtn" data-open="${encodeURIComponent(d.arquivo)}">abrir</button>
+        <button class="docbtn del" data-del="${d.id}" data-path="${encodeURIComponent(d.arquivo)}">excluir</button>
+      </td></tr>`;
+  }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:18px">nenhum documento'+(fc||fp?' com esse filtro':' ainda')+'</td></tr>';
+  $('docsBody').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openDoc(decodeURIComponent(b.dataset.open)));
+  $('docsBody').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteDoc(+b.dataset.del,decodeURIComponent(b.dataset.path)));
+}
+
+async function uploadDoc(){
+  if(!canEdit){alert('Entre para editar.');return;}
+  const file=$('docFile').files[0];
+  if(!file){alert('Escolha um arquivo.');return;}
+  if(file.size>25*1024*1024){alert('Arquivo muito grande (máx. 25 MB).');return;}
+  const cat=$('docCat').value, parcela=$('docParcela').value||null;
+  const titulo=$('docTitulo').value.trim()||file.name;
+  const safe=file.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path=(parcela?parcela:'negocio')+'/'+Date.now()+'_'+safe;
+  setSave('Enviando arquivo…');$('docBtn').disabled=true;
+  const up=await sb.storage.from(BUCKET).upload(path,file,{upsert:false});
+  if(up.error){setSave('Erro: '+up.error.message);$('docBtn').disabled=false;alert('Erro no upload: '+up.error.message);return;}
+  const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail});
+  $('docBtn').disabled=false;
+  if(ins.error){setSave('Erro: '+ins.error.message);await sb.storage.from(BUCKET).remove([path]);alert('Erro ao indexar: '+ins.error.message);return;}
+  $('docFile').value='';$('docTitulo').value='';
+  setSave('Documento anexado ✓');
+  await loadDocs();renderDocs();
+}
+
+async function openDoc(path){
+  const {data,error}=await sb.storage.from(BUCKET).createSignedUrl(path,3600);
+  if(error){alert('Erro ao abrir: '+error.message);return;}
+  window.open(data.signedUrl,'_blank');
+}
+
+async function deleteDoc(id,path){
+  if(!canEdit)return;
+  if(!confirm('Excluir este documento? Não dá para desfazer.'))return;
+  setSave('Excluindo…');
+  await sb.storage.from(BUCKET).remove([path]);
+  const {error}=await sb.from('ocean504_docs').delete().eq('id',id);
+  if(error){setSave('Erro: '+error.message);return;}
+  setSave('Documento excluído ✓');
+  await loadDocs();renderDocs();
 }
 
 function sv(){return{incc:+$('incc').value/100,val:+$('val').value/100,cdi:+$('cdi').value/100,alu:+$('alu').value};}
