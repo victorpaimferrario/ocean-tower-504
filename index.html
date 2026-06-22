@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--ocean:#0A2A33;--ocean2:#0E4D5C;--teal:#1C7C8C;--mist:#EAF0F1;--paper:#F4F7F7;
   --card:#FFFFFF;--ink:#13262B;--muted:#5C7178;--gold:#C2912E;--gold-soft:#F2E6CB;
@@ -31,6 +32,9 @@ header h1 .num{color:var(--gold)}
 .banner.show{display:flex}
 .banner span{font-size:13.5px;color:#6b531a;font-weight:500}.banner b{color:#4d3c12}
 .dlbtn{background:var(--gold);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.authbar{background:#F4F7F7;border:1px solid #D8E4E4;border-radius:12px;padding:10px 16px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.authbar span{font-size:13.5px;color:#33555c;font-weight:500}.authbar b{color:#16323a}
+.savestatus{color:#1C7C8C !important;font-size:12.5px !important;min-width:80px}
 .controls{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-top:14px;box-shadow:0 8px 30px rgba(10,42,51,.06)}
 .controls h2{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
 .obsline{font-size:13px;color:var(--ink);margin-bottom:12px}
@@ -114,9 +118,10 @@ footer b{color:var(--ink)}
 
 <div class="wrap">
   <div class="alert" id="alert"></div>
-  <div class="banner" id="banner">
-    <span>✏️ Há <b>alterações não publicadas</b>. Baixe o arquivo, substitua o <b>dados.json</b> no repositório e dê <b>push</b> no GitHub Desktop.</span>
-    <button class="dlbtn" id="dlBtn">⬇ Baixar dados.json</button>
+  <div class="authbar" id="authbar">
+    <span id="authStatus">🔒 Somente leitura</span>
+    <span class="savestatus" id="saveStatus"></span>
+    <button class="dlbtn" id="authBtn">Entrar para editar</button>
   </div>
 
   <div class="controls">
@@ -192,8 +197,6 @@ footer b{color:var(--ink)}
     <p class="desc" id="cdVeredito" style="margin-top:10px;font-size:13px"></p>
   </div>
 
-  <button class="btn ghost" id="reload">↻ Recarregar do repositório (descarta rascunho local)</button>
-
   <footer>
     <b>Como o INCC é calculado.</b> Em dia: INCC = valor pago − base. Atrasado: você informa juros e multa, e INCC = pago − base − juros − multa. A projeção do que falta usa a taxa mensal média que você realmente pagou (ou o slider, no modo "e se"). <b>All-in</b> = real pago + projeção do saldo + aportes + ITBI/registro (3,3% s/ R$ 456.010) + ambientação (R$ 12.000).<br>
     <b>Material de apoio à decisão</b> — não é recomendação de investimento.
@@ -217,40 +220,80 @@ function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).pad
   [[2026,11],[2027,5],[2027,11],[2028,5],[2028,11],[2029,5],[2029,11]].forEach((x,i)=>add('Semestral '+(i+1),'semestral',d(x[0],x[1],1),30536.37));
   return a;}
 
-let state={atualizado_em:null,itens:[]},dirty=false,charts={};
-const LS='ot504_data_v2';
+let state={itens:[]},charts={},canEdit=false;
+const SB_URL='https://aipgtnvflezqnhzbpxam.supabase.co';
+const SB_KEY='sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf';
+const EDITORES=['victorpaim@pasf.com.br','eduardodeabreuls@gmail.com'];
+const sb=supabase.createClient(SB_URL,SB_KEY);
 
 async function bootstrap(){
   initCharts();
-  let repo=null;try{const r=await fetch('dados.json?'+Date.now());if(r.ok)repo=await r.json();}catch(e){}
-  const local=localStorage.getItem(LS);let loaded=null;
-  if(local){const lj=JSON.parse(local);
-    if(repo&&repo.atualizado_em&&lj.atualizado_em&&new Date(repo.atualizado_em)>=new Date(lj.atualizado_em)){loaded=repo;localStorage.removeItem(LS);dirty=false;}
-    else{loaded=lj;dirty=true;}}
-  else if(repo)loaded=repo; else loaded={atualizado_em:null,itens:genItens()};
-  if(!loaded.itens||!loaded.itens.length)loaded.itens=genItens();
-  loaded.itens.forEach(it=>{if(it.juros===undefined)it.juros=null;if(it.multa===undefined)it.multa=null;});
-  state=loaded;
+  const {data:{session}}=await sb.auth.getSession();
+  canEdit=!!(session&&session.user&&EDITORES.includes(session.user.email));
+  sb.auth.onAuthStateChange((_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));updateAuthUI();render();});
+  await loadFromDB();
   ['incc','val','cdi','alu'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
   $('useObs').addEventListener('change',render);
-  $('dlBtn').onclick=download;$('apBtn').onclick=addAporte;
-  $('reload').onclick=()=>{localStorage.removeItem(LS);location.reload();};
+  $('apBtn').onclick=addAporte;
+  $('authBtn').onclick=onAuthClick;
   try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (Selic meta): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
+  $('stamp').textContent='🟢 dados ao vivo (Supabase)';
+  updateAuthUI();
   render();
 }
-function markDirty(){dirty=true;state.atualizado_em=new Date().toISOString();localStorage.setItem(LS,JSON.stringify(state));updateBanner();updateStamp();}
-function updateBanner(){$('banner').classList.toggle('show',dirty);}
-function updateStamp(){$('stamp').innerHTML=state.atualizado_em?(dirty?'rascunho local · '+fmtDT(state.atualizado_em):'publicado · '+fmtDT(state.atualizado_em)):'novo — ainda não publicado';}
-function fmtDT(s){const d=new Date(s);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-function download(){state.atualizado_em=new Date().toISOString();
-  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='dados.json';a.click();
-  dirty=false;localStorage.setItem(LS,JSON.stringify(state));updateBanner();updateStamp();}
-function addAporte(){const v=parseFloat($('apVal').value),dt=$('apData').value,obs=$('apObs').value.trim();
+
+async function loadFromDB(){
+  const {data,error}=await sb.from('ocean504_parcelas').select('*').order('id');
+  if(error){console.error(error);setSave('Erro ao carregar: '+error.message);state.itens=[];return;}
+  state.itens=(data||[]).map(r=>({...r,
+    valor_pago:r.valor_pago!=null?+r.valor_pago:null,
+    valor_base:+r.valor_base,
+    juros:r.juros!=null?+r.juros:null,
+    multa:r.multa!=null?+r.multa:null}));
+}
+
+function setSave(t){const e=$('saveStatus');if(e)e.textContent=t;}
+
+async function saveRow(row){
+  if(!canEdit){setSave('🔒 entre para editar');return;}
+  setSave('Salvando…');
+  const {error}=await sb.from('ocean504_parcelas')
+    .update({valor_pago:row.valor_pago,data_pagamento:row.data_pagamento||null,juros:row.juros,multa:row.multa,obs:row.obs})
+    .eq('id',row.id);
+  setSave(error?('Erro: '+error.message):'Salvo ✓ '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
+}
+
+async function addAporte(){
+  if(!canEdit){alert('Entre para editar antes de registrar um aporte.');return;}
+  const v=parseFloat($('apVal').value),dt=$('apData').value,obs=$('apObs').value.trim();
   if(!v||v<=0){alert('Informe o valor do aporte.');return;}
-  const nap=state.itens.filter(i=>i.tipo==='aporte').length+1;const id=Math.max(0,...state.itens.map(i=>i.id))+1;
-  state.itens.push({id,ref:'Aporte '+nap,tipo:'aporte',vencimento:dt||null,valor_base:0,valor_pago:v,data_pagamento:dt||null,juros:null,multa:null,obs:obs||null});
-  $('apVal').value='';$('apObs').value='';$('apData').value='';markDirty();render();}
+  const nap=state.itens.filter(i=>i.tipo==='aporte').length+1;
+  const id=Math.max(0,...state.itens.map(i=>i.id))+1;
+  const row={id,ref:'Aporte '+nap,tipo:'aporte',vencimento:dt||null,valor_base:0,valor_pago:v,data_pagamento:dt||null,juros:null,multa:null,obs:obs||null};
+  setSave('Salvando…');
+  const {error}=await sb.from('ocean504_parcelas').insert(row);
+  if(error){setSave('Erro: '+error.message);alert('Erro ao salvar aporte: '+error.message);return;}
+  state.itens.push(row);
+  $('apVal').value='';$('apObs').value='';$('apData').value='';
+  setSave('Salvo ✓');render();
+}
+
+async function onAuthClick(){
+  if(canEdit){await sb.auth.signOut();setSave('');return;}
+  const email=prompt('E-mail de login:',EDITORES[0]);if(!email)return;
+  const password=prompt('Senha:');if(!password)return;
+  setSave('Entrando…');
+  const {error}=await sb.auth.signInWithPassword({email:email.trim(),password});
+  if(error){setSave('');alert('Falha no login: '+error.message);return;}
+  await loadFromDB();setSave('Conectado ✓');render();
+}
+
+function updateAuthUI(){
+  const st=$('authStatus'),btn=$('authBtn');
+  if(canEdit){st.innerHTML='✏️ <b>Modo edição</b> — suas alterações salvam sozinhas';btn.textContent='Sair';}
+  else{st.innerHTML='🔒 <b>Somente leitura</b> — o Dudu e os demais só consultam';btn.textContent='Entrar para editar';}
+  document.querySelectorAll('.addbar input, #apBtn').forEach(el=>el.disabled=!canEdit);
+}
 
 function sv(){return{incc:+$('incc').value/100,val:+$('val').value/100,cdi:+$('cdi').value/100,alu:+$('alu').value};}
 
@@ -315,7 +358,7 @@ function render(){
   $('kFalta').textContent=BRL(c.falta);$('kFaltaSub').textContent=(c.parc.length-npagas)+' parcelas a pagar';
   $('kIncc').textContent=BRL(c.inccPago);
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);updateBanner();updateStamp();
+  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);
 }
 
 function renderAlert(){
@@ -342,17 +385,17 @@ function renderTable(c){
       <td>${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj">${isAp?'—':BRL(r.valor_base,0)}</td>
       <td class="metade">${isAp?'—':BRL(meio,0)}</td>
-      <td><input type="number" step="0.01" value="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—"></td>
-      <td><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento"></td>
-      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0">'}</td>
-      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0">'}</td>
+      <td><input type="number" step="0.01" value="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
+      <td><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
+      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
+      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
       <td>${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>`;
     tb.appendChild(tr);
   });
   tb.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{
     const id=+inp.dataset.id,f=inp.dataset.f;let v=inp.value;
     v=(f==='data_pagamento')?(v||null):(v===''?null:parseFloat(v));
-    const row=state.itens.find(x=>x.id===id);if(row)row[f]=v;markDirty();render();
+    const row=state.itens.find(x=>x.id===id);if(row){row[f]=v;saveRow(row);}render();
   }));
 }
 
