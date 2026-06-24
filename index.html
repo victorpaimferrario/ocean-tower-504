@@ -84,6 +84,7 @@ table.pg{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1060px}
 .docchips{display:flex;gap:4px;flex-wrap:wrap}
 .docchip{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 7px;font-size:14px;line-height:1;cursor:pointer}
 .docchip:hover{background:var(--mist);border-color:var(--teal)}
+.docchip.mng{border-style:dashed;opacity:.8}
 table.pg th{position:sticky;top:0;background:var(--ocean);color:#fff;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:8px 9px;text-align:left;z-index:2}
 table.pg td{padding:6px 9px;border-bottom:1px solid var(--line)}
 table.pg tr.paga{background:var(--green-soft)}
@@ -97,6 +98,7 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 .vpl-panel .v.pos{color:var(--green)}.vpl-panel .v.neg{color:var(--coral)}
 .incc-ok{color:var(--green);font-weight:600}.incc-bad{color:var(--coral);font-weight:600}
 .vtag{font-size:10px;color:var(--coral);font-weight:700;display:block}
+.rastro{font-size:10px;color:var(--muted);display:inline-block;margin-top:2px}
 .addbar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .addbar .f{display:flex;flex-direction:column;gap:3px}
 .addbar label{font-size:11px;color:var(--muted);font-weight:600}
@@ -367,6 +369,15 @@ footer b{color:var(--ink)}
   </div>
 </div>
 
+<div class="modal-bg" id="docMgmt" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dgTitle">
+    <h3 id="dgTitle">Documentos da parcela</h3>
+    <p class="modal-sub" id="dgRef">parcela</p>
+    <div id="dgList" class="doclist"></div>
+    <div class="modal-acts"><button class="btn ghost" id="dgClose" type="button">Fechar</button></div>
+  </div>
+</div>
+
 <script>
 const BRL=(n,d=0)=>'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const PCT=(n,d=1)=>(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
@@ -414,7 +425,9 @@ async function bootstrap(){
   $('dmGo').onclick=()=>resolveDocModal($('dmParcela').value);
   $('dmSkip').onclick=()=>resolveDocModal('__skip__');
   $('docModal').addEventListener('click',e=>{if(e.target.id==='docModal')resolveDocModal('__skip__');});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLogin();resolveDocModal('__skip__');}});
+  $('dgClose').onclick=closeDocMgmt;
+  $('docMgmt').addEventListener('click',e=>{if(e.target.id==='docMgmt')closeDocMgmt();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLogin();resolveDocModal('__skip__');closeDocMgmt();}});
   $('fCat').onchange=renderDocs;
   setupDropzone();
   fillParcelaSelects();
@@ -442,8 +455,9 @@ function setSave(t){const e=$('saveStatus');if(e)e.textContent=t;}
 async function saveRow(row){
   if(!canEdit){setSave('🔒 entre para editar');return;}
   setSave('Salvando…');
+  row.updated_by=currentEmail; row.updated_at=new Date().toISOString();
   const {error}=await sb.from('ocean504_parcelas')
-    .update({valor_pago:row.valor_pago,data_pagamento:row.data_pagamento||null,juros:row.juros,multa:row.multa,obs:row.obs})
+    .update({valor_pago:row.valor_pago,data_pagamento:row.data_pagamento||null,juros:row.juros,multa:row.multa,obs:row.obs,updated_by:row.updated_by,updated_at:row.updated_at})
     .eq('id',row.id);
   setSave(error?('Erro: '+error.message):'Salvo ✓ '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
 }
@@ -454,7 +468,7 @@ async function addAporte(){
   if(!v||v<=0){alert('Informe o valor do aporte.');return;}
   const nap=state.itens.filter(i=>i.tipo==='aporte').length+1;
   const id=Math.max(0,...state.itens.map(i=>i.id))+1;
-  const row={id,ref:'Aporte '+nap,tipo:'aporte',vencimento:dt||null,valor_base:0,valor_pago:v,data_pagamento:dt||null,juros:null,multa:null,obs:obs||null};
+  const row={id,ref:'Aporte '+nap,tipo:'aporte',vencimento:dt||null,valor_base:0,valor_pago:v,data_pagamento:dt||null,juros:null,multa:null,obs:obs||null,updated_by:currentEmail,updated_at:new Date().toISOString()};
   setSave('Salvando…');
   const {error}=await sb.from('ocean504_parcelas').insert(row);
   if(error){setSave('Erro: '+error.message);alert('Erro ao salvar aporte: '+error.message);return;}
@@ -645,6 +659,7 @@ async function deleteDoc(id,path){
   const {error}=await sb.from('ocean504_docs').delete().eq('id',id);
   if(error){upMsg('Erro: '+error.message);return;}
   await loadDocs();renderDocs();render();
+  if($('docMgmt').classList.contains('show'))renderDocMgmt();
   upMsg('Documento excluído ✓');setTimeout(()=>upMsg('',false),3000);
 }
 
@@ -750,7 +765,47 @@ function docsByParcela(){const m={};(docs||[]).forEach(d=>{if(d.parcela_id){(m[d
 function docChips(pid,by){
   const list=by[pid]||[];
   if(!list.length)return '<span class="proj">—</span>';
-  return '<div class="docchips">'+list.map(d=>`<button class="docchip" data-docopen="${encodeURIComponent(d.arquivo)}" title="${esc((CAT_LABEL[d.categoria]||d.categoria)+': '+d.titulo)}">${CAT_ICON[d.categoria]||'📎'}</button>`).join('')+'</div>';
+  const chips=list.map(d=>`<button class="docchip" data-docopen="${encodeURIComponent(d.arquivo)}" title="${esc((CAT_LABEL[d.categoria]||d.categoria)+': '+d.titulo)}">${CAT_ICON[d.categoria]||'📎'}</button>`).join('');
+  return '<div class="docchips">'+chips+`<button class="docchip mng" data-mng="${pid}" title="Gerenciar / trocar vínculo">⚙</button>`+'</div>';
+}
+
+let _dgParcela=null;
+function openDocMgmt(pid){
+  _dgParcela=pid;
+  const it=state.itens.find(x=>String(x.id)===String(pid));
+  $('dgRef').textContent=it?it.ref:('#'+pid);
+  renderDocMgmt();
+  const m=$('docMgmt');m.classList.add('show');m.setAttribute('aria-hidden','false');
+}
+function closeDocMgmt(){const m=$('docMgmt');m.classList.remove('show');m.setAttribute('aria-hidden','true');}
+function renderDocMgmt(){
+  const list=(docs||[]).filter(d=>String(d.parcela_id)===String(_dgParcela));
+  if(!list.length){$('dgList').innerHTML='<div class="docempty">nenhum documento nesta parcela</div>';return;}
+  $('dgList').innerHTML=list.map(d=>{
+    const ep=encodeURIComponent(d.arquivo);
+    const sel=state.itens.map(i=>`<option value="${i.id}"${String(i.id)===String(d.parcela_id)?' selected':''}>${esc(i.ref)}</option>`).join('');
+    return `<div class="doccard">
+      <div class="dc-main">
+        <div class="dc-title">${esc(d.titulo)}</div>
+        <div class="dc-meta"><span class="cat">${CAT_LABEL[d.categoria]||esc(d.categoria)}</span></div>
+        <label class="modal-l" style="margin-top:6px">Vinculada à parcela</label>
+        <select class="relink" data-id="${d.id}">${sel}</select>
+      </div>
+      <div class="dc-acts">
+        <button class="docbtn" data-open="${ep}">Abrir</button>
+        <button class="docbtn del" data-del="${d.id}" data-path="${ep}">Excluir</button>
+      </div></div>`;
+  }).join('');
+  $('dgList').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openDoc(decodeURIComponent(b.dataset.open)));
+  $('dgList').querySelectorAll('.relink').forEach(s=>s.onchange=()=>relinkDoc(+s.dataset.id,+s.value));
+  $('dgList').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteDoc(+b.dataset.del,decodeURIComponent(b.dataset.path)));
+}
+async function relinkDoc(id,newPid){
+  setSave('Movendo documento…');
+  const {error}=await sb.from('ocean504_docs').update({parcela_id:newPid}).eq('id',id);
+  if(error){alert('Erro ao mover: '+error.message);setSave('');return;}
+  await loadDocs();render();renderDocMgmt();
+  setSave('Documento movido ✓');
 }
 
 function render(){
@@ -791,7 +846,7 @@ function renderTable(c){
     const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
     const meio=r.valor_base/2;
     const tr=document.createElement('tr');tr.className=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));
-    tr.innerHTML=`<td><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}</td>
+    tr.innerHTML=`<td><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
       <td>${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj">${isAp?'—':BRL(r.valor_base,0)}</td>
       <td class="metade">${isAp?'—':BRL(meio,0)}</td>
@@ -810,6 +865,7 @@ function renderTable(c){
     const row=state.itens.find(x=>x.id===id);if(row){row[f]=v;saveRow(row);}render();
   }));
   tb.querySelectorAll('[data-docopen]').forEach(b=>b.onclick=()=>openDoc(decodeURIComponent(b.dataset.docopen)));
+  tb.querySelectorAll('[data-mng]').forEach(b=>b.onclick=()=>openDocMgmt(+b.dataset.mng));
 }
 
 function renderCharts(c){
