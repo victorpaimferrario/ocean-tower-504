@@ -47,6 +47,7 @@ header h1 .num{color:var(--gold)}
 .sl.muted{opacity:.45}
 .sl input[type=range]{width:100%;-webkit-appearance:none;height:5px;border-radius:5px;background:var(--mist);outline:none}
 .sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--teal);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.sl select,.sl input[type=date],.sl input[type=number]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;margin-top:6px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin:18px 0}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 17px}
 .kpi .k-label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
@@ -167,10 +168,13 @@ footer b{color:var(--ink)}
     <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
     <label class="toggle"><input type="checkbox" id="useObs" checked> Usar o INCC real que já paguei (recomendado). Desmarque para simular um cenário "e se".</label>
     <div class="sliders">
-      <div class="sl" id="slIncc"><label>INCC a.a. — "e se" <span class="val" id="vIncc">6,7%</span></label><input type="range" id="incc" min="3" max="12" step="0.1" value="6.7"></div>
-      <div class="sl"><label>Valorização a.a. <span class="val" id="vVal">4,0%</span></label><input type="range" id="val" min="0" max="10" step="0.5" value="4"></div>
+      <div class="sl" id="slIncc"><label>INCC a.a. — projeção <span class="val" id="vIncc">6,7%</span></label><input type="range" id="incc" min="3" max="12" step="0.1" value="6.7"></div>
       <div class="sl"><label>CDI a.a. <span class="val" id="vCdi">14,3%</span></label><input type="range" id="cdi" min="8" max="16" step="0.05" value="14.25"></div>
-      <div class="sl"><label>Aluguel mensal <span class="val" id="vAlu">R$ 1.700</span></label><input type="range" id="alu" min="800" max="3000" step="50" value="1700"></div>
+      <div class="sl"><label>Rende % do CDI <span class="val" id="vPct">95%</span></label><input type="range" id="pctcdi" min="70" max="120" step="1" value="95"></div>
+      <div class="sl"><label>Tributação da aplicação</label><select id="trib"><option value="isento">Isenta (LCI/LCA)</option><option value="trib">Tributada (IR)</option></select></div>
+      <div class="sl"><label>Entrega prevista</label><select id="entrega"><option value="2031-07-01">No prazo (jul/2031)</option><option value="2032-01-01">+180d tolerância (jan/2032)</option><option value="custom">Atraso (escolher data)</option></select></div>
+      <div class="sl"><label>Data se atrasar</label><input type="date" id="entregaData" value="2031-07-01" disabled></div>
+      <div class="sl"><label>Avaliação na entrega (R$)</label><input type="number" id="aval" step="1000" placeholder="opcional — quando souber"></div>
     </div>
     <div class="obsline" id="cdiFonte" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
   </div>
@@ -216,19 +220,20 @@ footer b{color:var(--ink)}
       <div class="chart-box"><canvas id="cComp"></canvas></div>
     </div>
     <div class="panel">
-      <h3>Retorno × custo do dinheiro</h3>
-      <p class="desc">Yield do aluguel contra o CDI líquido (a.a.).</p>
+      <h3>Imóvel × renda fixa</h3>
+      <p class="desc">O que sai do bolso contra o que esse dinheiro renderia aplicado, até a entrega.</p>
       <div class="chart-box"><canvas id="cRet"></canvas></div>
     </div>
   </div>
 
   <div class="panel vpl-panel">
-    <h3>Custo do dinheiro <span class="badge">vale mais que o CDI?</span></h3>
-    <p class="desc">O capital que você imobiliza aqui poderia render no CDI líquido (~95%, isento). Aqui está o "preço" de imobilizar — e quanto o imóvel precisa valorizar só para empatar com a renda fixa.</p>
+    <h3>Valeu a pena? <span class="badge" id="cdData">entrega jul/2031</span></h3>
+    <p class="desc">Comparação sem suposição de mercado: o que você desembolsa contra o que esse mesmo dinheiro renderia na renda fixa, aplicado parcela a parcela (e aportes) até a entrega.</p>
     <div class="sim-out">
       <div class="b"><div class="l">Sai do bolso (total)</div><div class="v" id="cdTotal">—</div></div>
+      <div class="b"><div class="l">Renderia na renda fixa</div><div class="v" id="cdBreak">—</div></div>
       <div class="b"><div class="l">Custo de oportunidade</div><div class="v" id="cdCusto">—</div></div>
-      <div class="b"><div class="l">Break-even na entrega</div><div class="v" id="cdBreak">—</div></div>
+      <div class="b"><div class="l">Break-even por m²</div><div class="v" id="cdM2">—</div></div>
       <div class="b"><div class="l">Valorização a.a. p/ empatar</div><div class="v" id="cdValoriz">—</div></div>
     </div>
     <p class="desc" id="cdComp" style="margin-top:12px;font-size:12.5px;padding:10px 12px;background:rgba(28,124,140,.06);border-radius:8px;line-height:1.6"></p>
@@ -325,7 +330,9 @@ async function bootstrap(){
   currentEmail=session&&session.user?session.user.email:null;
   sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
   await loadFromDB();
-  ['incc','val','cdi','alu'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
+  ['incc','cdi','pctcdi'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
+  ['trib','aval','entregaData'].forEach(id=>$(id).addEventListener('change',render));
+  $('entrega').addEventListener('change',()=>{const cu=$('entrega').value==='custom';$('entregaData').disabled=!cu;if(cu&&!$('entregaData').value)$('entregaData').value='2031-12-01';render();});
   $('useObs').addEventListener('change',render);
   $('apBtn').onclick=addAporte;
   $('authBtn').onclick=onAuthClick;
@@ -343,8 +350,9 @@ async function bootstrap(){
 
 async function loadFromDB(){
   const {data,error}=await sb.from('ocean504_parcelas').select('*').order('id');
-  if(error){console.error(error);setSave('Erro ao carregar: '+error.message);state.itens=[];return;}
-  state.itens=(data||[]).map(r=>({...r,
+  if(error){console.error('loadFromDB erro:',error);setSave('⚠️ banco indisponível — mostrando parcelas base');state.itens=genItens();return;}
+  if(!data||!data.length){console.warn('loadFromDB vazio — usando parcelas base');state.itens=genItens();return;}
+  state.itens=data.map(r=>({...r,
     valor_pago:r.valor_pago!=null?+r.valor_pago:null,
     valor_base:+r.valor_base,
     juros:r.juros!=null?+r.juros:null,
@@ -574,7 +582,9 @@ function casarParcela(lido){
 }
 
 
-function sv(){return{incc:+$('incc').value/100,val:+$('val').value/100,cdi:+$('cdi').value/100,alu:+$('alu').value};}
+function sv(){return{incc:+$('incc').value/100,cdi:+$('cdi').value/100,pctcdi:+$('pctcdi').value/100,trib:$('trib').value};}
+function getEntrega(){const sel=$('entrega').value;const d=sel==='custom'?($('entregaData').value||'2031-12-01'):sel;return new Date(d+'T00:00:00');}
+function aliqIR(anos){return anos>2?0.15:anos>1?0.175:anos>0.5?0.20:0.225;}
 
 function inccObs(){
   const taxas=[];let somaIncc=0;
@@ -618,10 +628,10 @@ function initCharts(){
   charts.comp=new Chart($('cComp'),{type:'doughnut',data:{labels:['Pago real','Projeção saldo','Aportes','Entrada','Ambientação'],
     datasets:[{data:[],backgroundColor:['#1C7C8C','#9FB7BC','#C2912E','#0E4D5C','#BF4A30'],borderWidth:2,borderColor:'#fff'}]},
     options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)}}}}});
-  charts.ret=new Chart($('cRet'),{type:'bar',data:{labels:['Yield bruto','Yield líquido','CDI líquido'],
-    datasets:[{data:[],backgroundColor:['#1C7C8C','#2E7D52','#C2912E'],borderRadius:4}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>PCT(c.parsed.y,2)+' a.a.'}}},
-      scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>v+'%'}}}}});
+  charts.ret=new Chart($('cRet'),{type:'bar',data:{labels:['Sai do bolso','Renda fixa (entrega)'],
+    datasets:[{data:[],backgroundColor:['#0E4D5C','#2E7D52'],borderRadius:4}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.y)}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
 }
 
 function docsIndex(){const m={};(docs||[]).forEach(d=>{if(d.parcela_id){(m[d.parcela_id]||(m[d.parcela_id]=new Set())).add(d.categoria);}});return m;}
@@ -633,8 +643,8 @@ function selosParcela(pid,di){
 
 function render(){
   const c=compute(),s=c.s;
-  $('vIncc').textContent=PCT(s.incc*100,1);$('vVal').textContent=PCT(s.val*100,1);
-  $('vCdi').textContent=PCT(s.cdi*100,1);$('vAlu').textContent=BRL(s.alu);
+  $('vIncc').textContent=PCT(s.incc*100,1);
+  $('vCdi').textContent=PCT(s.cdi*100,1);$('vPct').textContent=Math.round(s.pctcdi*100)+'%';
   if(c.obs.anual!=null){$('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> (média de '+c.obs.nObs+' parcela'+(c.obs.nObs>1?'s':'')+' paga'+(c.obs.nObs>1?'s':'')+')'+($('useObs').checked?' — em uso na projeção':' — slider em uso');}
   else $('obsLine').innerHTML='INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)';
   $('slIncc').classList.toggle('muted',$('useObs').checked&&c.obs.mensal!=null);
@@ -700,8 +710,9 @@ function renderCharts(c){
     proj[y]+=pj;if(r.valor_pago!=null)real[y]+=num(r.valor_pago);});
   charts.ano.data.labels=years;charts.ano.data.datasets[0].data=years.map(y=>real[y]);charts.ano.data.datasets[1].data=years.map(y=>proj[y]);charts.ano.update();
   charts.comp.data.datasets[0].data=[c.pagoReg,c.projRest,c.aportes,ENTRADA,AMB];charts.comp.update();
-  const yB=(s.alu*12)/c.allin*100,yL=(s.alu*12*(1-MANUT)-IPTU)/c.allin*100,cdiLiq=s.cdi*PCDI*100;
-  charts.ret.data.datasets[0].data=[yB,yL,cdiLiq];charts.ret.update();
+  const a=analisar(c);
+  charts.ret.data.labels=['Sai do bolso','Renda fixa (entrega)'];
+  charts.ret.data.datasets[0].data=[a.totalNom,a.breakeven];charts.ret.update();
 }
 
 function yearsBetween(a,b){return (b-a)/(365.25*24*3600*1000);}
@@ -712,36 +723,49 @@ function irr(flows){let lo=-0.9,hi=2,fl=npv(lo,flows),fh=npv(hi,flows);
   for(let i=0;i<200;i++){const mid=(lo+hi)/2,fm=npv(mid,flows);
     if(Math.abs(fm)<1)return mid; if(fl*fm<0){hi=mid;}else{lo=mid;fl=fm;}}
   return (lo+hi)/2;}
-function renderCusto(c){
-  const s=c.s,cdiLiq=s.cdi*PCDI,anosE=yearsBetween(T0,ENTREGA);
-  let totalNom=0,vfCDI=0,nominalParc=0,pagoOuProj=0,aportesTot=0;const flows=[];
+function analisar(c){
+  const s=c.s, ENT=getEntrega(), anosE=Math.max(0.01,yearsBetween(T0,ENT));
+  const taxa=s.cdi*s.pctcdi, isento=s.trib!=='trib';
+  const aplica=(val,d)=>{const a=Math.max(0,yearsBetween(d,ENT));const vf=val*Math.pow(1+taxa,a);if(isento)return vf;const g=vf-val;return val+g*(1-aliqIR(a));};
+  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0;
   state.itens.forEach(r=>{
-    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);
-      aportesTot+=val;totalNom+=val;vfCDI+=val*Math.pow(1+cdiLiq,Math.max(0,yearsBetween(d,ENTREGA)));flows.push({t:yearsBetween(T0,d),cf:-val});}return;}
+    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;vfRF+=aplica(val,d);}return;}
     const val=r.valor_pago!=null?num(r.valor_pago):r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
     const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
-    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfCDI+=val*Math.pow(1+cdiLiq,Math.max(0,yearsBetween(d,ENTREGA)));flows.push({t:yearsBetween(T0,d),cf:-val});
+    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfRF+=aplica(val,d);
   });
-  totalNom+=ENTRADA+AMB;vfCDI+=ENTRADA+AMB;flows.push({t:anosE,cf:-(ENTRADA+AMB)});
-  const correcaoParc=pagoOuProj-nominalParc;
-  let comp='<b>Composição do que sai do bolso:</b> nominal '+BRL(nominalParc)+' + INCC '+BRL(correcaoParc);
-  if(aportesTot>0)comp+=' + aportes '+BRL(aportesTot);
-  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(totalNom)+'</b>';
+  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,T0);
+  const valorHoje=M2BASE*AREA;
+  return {ENT,anosE,taxa,isento,pct:s.pctcdi,totalNom,vfRF,nominalParc,pagoOuProj,aportesTot,
+    correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
+    breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj};
+}
+
+function renderCusto(c){
+  const a=analisar(c);
+  let comp='<b>Sai do bolso:</b> nominal '+BRL(a.nominalParc)+' + INCC '+BRL(a.correcao);
+  if(a.aportesTot>0)comp+=' + aportes extras '+BRL(a.aportesTot);
+  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(a.totalNom)+'</b>';
   $('cdComp').innerHTML=comp;
-  const custoOp=vfCDI-totalNom,valorHoje=M2BASE*AREA,breakeven=vfCDI;
-  const valorizNec=Math.pow(breakeven/valorHoje,1/anosE)-1;
-  const valorEntrega=valorHoje*Math.pow(1+s.val,anosE);
-  const flows2=flows.slice();flows2.push({t:anosE,cf:valorEntrega});
-  const vpl=npv(cdiLiq,flows2),tir=irr(flows2);
-  $('cdTotal').textContent=BRL(totalNom);
-  $('cdCusto').textContent=BRL(custoOp);
-  $('cdBreak').textContent=BRL(breakeven);
-  const vz=$('cdValoriz');vz.textContent=PCT(valorizNec*100,1)+' a.a.';
-  const provavel=s.val,ok=provavel>=valorizNec;vz.className='v '+(ok?'pos':'neg');
-  let txt;
-  if(ok)txt='Com a valorização que você projeta ('+PCT(provavel*100,1)+' a.a.), o imóvel <b>supera o CDI</b> — precisa de '+PCT(valorizNec*100,1)+' a.a. para empatar e você espera mais que isso.';
-  else txt='Para empatar com o CDI, o imóvel precisa valorizar <b>'+PCT(valorizNec*100,1)+' a.a.</b> (valer '+BRL(breakeven)+' na entrega). Você projeta '+PCT(provavel*100,1)+' a.a.: abaixo disso, o <b>CDI ganha</b>.';
-  $('cdVeredito').innerHTML='<b>Leitura:</b> '+txt+' <span style="color:var(--muted)">No seu cenário de valorização: VPL '+(vpl>=0?'+':'−')+BRL(Math.abs(vpl))+' · TIR '+(tir!=null?PCT(tir*100,1):'—')+' · custo de oportunidade do capital '+BRL(custoOp)+' (CDI líquido '+PCT(cdiLiq*100,1)+'). Valores totais da unidade; sua parte é a metade.</span>';
+  $('cdTotal').textContent=BRL(a.totalNom);
+  $('cdBreak').textContent=BRL(a.breakeven);
+  $('cdCusto').textContent=BRL(a.custoOp);
+  $('cdM2').textContent=BRL(a.breakM2)+'/m²';
+  $('cdValoriz').textContent=PCT(a.valorizNec*100,1)+' a.a.';
+  $('cdData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+  const regime=a.isento?'isenta':'tributada';
+  let txt='Aplicando suas parcelas e aportes a <b>'+PCT(a.taxa*100,2)+' a.a.</b> ('+regime+', '+Math.round(a.pct*100)+'% do CDI) até a entrega, você teria <b>'+BRL(a.breakeven)+'</b>. Para o imóvel ter valido mais que a renda fixa, precisa valer mais que <b>'+BRL(a.breakM2)+'/m²</b> na entrega — valorização de <b>'+PCT(a.valorizNec*100,1)+' a.a.</b> sobre os '+BRL(a.valorHoje/AREA)+'/m² de hoje.';
+  const aval=parseFloat($('aval').value);
+  const vz=$('cdValoriz');
+  if(!isNaN(aval)&&aval>0){
+    const dif=aval-a.breakeven, ok=dif>=0;
+    vz.className='v '+(ok?'pos':'neg');
+    txt+=' <b>Com a avaliação informada ('+BRL(aval)+'): '+(ok?'o imóvel BATEU a renda fixa (+'+BRL(dif)+')':'a renda fixa teria sido melhor (−'+BRL(Math.abs(dif))+')')+'.</b>';
+  } else {
+    vz.className='v';
+    txt+=' <span style="color:var(--muted)">Pelo custo corrigido (INCC), o imóvel valeria ~'+BRL(a.inccProxy)+' — naturalmente abaixo do break-even enquanto o CDI supera o INCC. Informe a avaliação na entrega para o veredito final.</span>';
+  }
+  $('cdVeredito').innerHTML='<b>Leitura:</b> '+txt+' <span style="color:var(--muted)">Custo de oportunidade: '+BRL(a.custoOp)+'. Valores totais da unidade; sua parte é a metade.</span>';
 }
 
 bootstrap();
