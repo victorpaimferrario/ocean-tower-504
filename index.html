@@ -56,6 +56,7 @@ header h1 .num{color:var(--gold)}
 .kpi.accent{background:linear-gradient(160deg,#fff,var(--gold-soft));border-color:var(--gold-soft)}
 .kpi.accent .k-val{color:var(--gold)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid>.panel{min-width:0}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px}
 .panel h3{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-bottom:2px}
 .panel .desc{font-size:12px;color:var(--muted);margin-bottom:14px}
@@ -143,60 +144,61 @@ footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
 footer b{color:var(--ink)}
 @media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* header com login no topo */
+.head-wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:18px 28px;flex-wrap:wrap;position:relative;z-index:1}
+.head-main{flex:1 1 280px;min-width:0}
+.head-side{display:flex;flex-direction:column;align-items:flex-start;gap:8px;flex-shrink:0}
+.head-auth{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-start}
+.head-auth #authStatus{font-size:13px;color:#C5D9DC}
+.head-auth #authStatus b{color:#fff}
+.authbtn{background:var(--gold);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.authbtn:hover{filter:brightness(1.08)}
+.head-side .savestatus{color:#9FC4CB !important;min-width:0}
+.head-side .stamp{position:static;font-size:12px;color:#9FC4CB}
+/* divisória de seção */
+.section-div{display:flex;align-items:center;gap:14px;margin:34px 0 6px}
+.section-div::before,.section-div::after{content:"";flex:1;height:1px;background:var(--line)}
+.section-div span{font-family:'Fraunces',serif;font-size:16px;font-weight:600;color:var(--ocean2);white-space:nowrap}
+/* modal de login */
+.modal-bg{position:fixed;inset:0;background:rgba(10,42,51,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:16px;padding:22px 22px 20px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h3{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-bottom:4px}
+.modal .modal-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.modal .modal-l{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
+.modal select,.modal input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;background:#fff}
+.modal-err{color:var(--coral);font-size:13px;min-height:18px;margin-top:8px}
+.modal-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media(max-width:560px){.head-side{align-items:flex-start;text-align:left}.head-auth{justify-content:flex-start}}
 </style>
 </head>
 <body>
 <header>
-  <div class="wrap">
-    <div class="stamp" id="stamp"></div>
-    <div class="eyebrow">Ocean Tower · unidade 504 · Paim &amp; Duduzinho</div>
-    <h1>Acompanhamento real <span class="num">×</span> projetado</h1>
-    <p class="sub">O INCC é deduzido do próprio boleto pago — sem depender de fonte externa. Registre o valor pago e, se atrasar, os juros e a multa.</p>
+  <div class="wrap head-wrap">
+    <div class="head-main">
+      <div class="eyebrow">Ocean Tower · unidade 504 · Paim &amp; Duduzinho</div>
+      <h1>Acompanhamento real <span class="num">×</span> projetado</h1>
+      <p class="sub">O INCC é deduzido do próprio boleto pago — sem depender de fonte externa. Registre o valor pago e, se atrasar, os juros e a multa.</p>
+    </div>
+    <div class="head-side">
+      <div class="head-auth">
+        <span id="authStatus">🔒 Somente leitura</span>
+        <button class="authbtn" id="authBtn">Entrar para editar</button>
+      </div>
+      <span class="savestatus" id="saveStatus"></span>
+      <div class="stamp" id="stamp"></div>
+    </div>
   </div>
 </header>
 
 <div class="wrap">
   <div class="alert" id="alert"></div>
-  <div class="authbar" id="authbar">
-    <span id="authStatus">🔒 Somente leitura</span>
-    <span class="savestatus" id="saveStatus"></span>
-    <button class="dlbtn" id="authBtn">Entrar para editar</button>
-  </div>
-
-  <div class="controls">
-    <h2>Projeção do que ainda falta pagar</h2>
-    <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
-    <label class="toggle"><input type="checkbox" id="useObs" checked> Usar o INCC real que já paguei (recomendado). Desmarque para simular um cenário "e se".</label>
-    <div class="sliders">
-      <div class="sl" id="slIncc"><label>INCC a.a. — projeção <span class="val" id="vIncc">6,7%</span></label><input type="range" id="incc" min="3" max="12" step="0.1" value="6.7"></div>
-      <div class="sl"><label>CDI a.a. <span class="val" id="vCdi">14,3%</span></label><input type="range" id="cdi" min="8" max="16" step="0.05" value="14.25"></div>
-      <div class="sl"><label>Rende % do CDI <span class="val" id="vPct">95%</span></label><input type="range" id="pctcdi" min="70" max="120" step="1" value="95"></div>
-      <div class="sl"><label>Tributação da aplicação</label><select id="trib"><option value="isento">Isenta (LCI/LCA)</option><option value="trib">Tributada (IR)</option></select></div>
-      <div class="sl"><label>Entrega prevista</label><select id="entrega"><option value="2031-07-01">No prazo (jul/2031)</option><option value="2032-01-01">+180d tolerância (jan/2032)</option><option value="custom">Atraso (escolher data)</option></select></div>
-      <div class="sl"><label>Data se atrasar</label><input type="date" id="entregaData" value="2031-07-01" disabled></div>
-      <div class="sl"><label>Avaliação na entrega (R$)</label><input type="number" id="aval" step="1000" placeholder="opcional — quando souber"></div>
-    </div>
-    <div class="obsline" id="cdiFonte" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
-  </div>
 
   <div class="kpis">
     <div class="kpi accent"><div class="k-label">All-in atual (real + projeção)</div><div class="k-val" id="kAllin">—</div><div class="k-sub" id="kAllinSub"></div></div>
     <div class="kpi"><div class="k-label">Já pago (real)</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub"></div></div>
     <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub"></div></div>
     <div class="kpi"><div class="k-label">INCC pago acumulado</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção real embutida</div></div>
-  </div>
-
-  <div class="grid">
-    <div class="panel">
-      <h3>Realizado × projetado <span class="badge">acumulado</span></h3>
-      <p class="desc">Pago efetivo contra a curva projetada (projeção ancorada no INCC real).</p>
-      <div class="chart-box"><canvas id="cAcum"></canvas></div>
-    </div>
-    <div class="panel">
-      <h3>Por ano</h3>
-      <p class="desc">Desembolso realizado e projetado, ano a ano (total da unidade).</p>
-      <div class="chart-box"><canvas id="cAno"></canvas></div>
-    </div>
   </div>
 
   <div class="panel">
@@ -211,33 +213,6 @@ footer b{color:var(--ink)}
       <div class="f"><label>Valor (R$)</label><input id="apVal" type="number" step="0.01" placeholder="0,00"></div>
       <button class="btn" id="apBtn" style="margin:0">+ Registrar aporte</button>
     </div>
-  </div>
-
-  <div class="grid">
-    <div class="panel">
-      <h3>Composição do all-in atual</h3>
-      <p class="desc">Real pago, projeção do saldo, aportes e custos de entrada.</p>
-      <div class="chart-box"><canvas id="cComp"></canvas></div>
-    </div>
-    <div class="panel">
-      <h3>Imóvel × renda fixa</h3>
-      <p class="desc">O que sai do bolso contra o que esse dinheiro renderia aplicado, até a entrega.</p>
-      <div class="chart-box"><canvas id="cRet"></canvas></div>
-    </div>
-  </div>
-
-  <div class="panel vpl-panel">
-    <h3>Valeu a pena? <span class="badge" id="cdData">entrega jul/2031</span></h3>
-    <p class="desc">Comparação sem suposição de mercado: o que você desembolsa contra o que esse mesmo dinheiro renderia na renda fixa, aplicado parcela a parcela (e aportes) até a entrega.</p>
-    <div class="sim-out">
-      <div class="b"><div class="l">Sai do bolso (total)</div><div class="v" id="cdTotal">—</div></div>
-      <div class="b"><div class="l">Renderia na renda fixa</div><div class="v" id="cdBreak">—</div></div>
-      <div class="b"><div class="l">Custo de oportunidade</div><div class="v" id="cdCusto">—</div></div>
-      <div class="b"><div class="l">Break-even por m²</div><div class="v" id="cdM2">—</div></div>
-      <div class="b"><div class="l">Valorização a.a. p/ empatar</div><div class="v" id="cdValoriz">—</div></div>
-    </div>
-    <p class="desc" id="cdComp" style="margin-top:12px;font-size:12.5px;padding:10px 12px;background:rgba(28,124,140,.06);border-radius:8px;line-height:1.6"></p>
-    <p class="desc" id="cdVeredito" style="margin-top:10px;font-size:13px"></p>
   </div>
 
   <div class="panel" id="docsCard">
@@ -292,10 +267,84 @@ footer b{color:var(--ink)}
     </div>
   </div>
 
+  <div class="section-div"><span>Análise de investimento</span></div>
+
+  <div class="controls">
+    <h2>Projeção e cenário de renda fixa</h2>
+    <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
+    <label class="toggle"><input type="checkbox" id="useObs" checked> Usar o INCC real que já paguei (recomendado). Desmarque para simular um cenário "e se".</label>
+    <div class="sliders">
+      <div class="sl" id="slIncc"><label>INCC a.a. — projeção <span class="val" id="vIncc">6,7%</span></label><input type="range" id="incc" min="3" max="12" step="0.1" value="6.7"></div>
+      <div class="sl"><label>CDI a.a. <span class="val" id="vCdi">14,3%</span></label><input type="range" id="cdi" min="8" max="16" step="0.05" value="14.25"></div>
+      <div class="sl"><label>Rende % do CDI <span class="val" id="vPct">95%</span></label><input type="range" id="pctcdi" min="70" max="120" step="1" value="95"></div>
+      <div class="sl"><label>Tributação da aplicação</label><select id="trib"><option value="isento">Isenta (LCI/LCA)</option><option value="trib">Tributada (IR)</option></select></div>
+      <div class="sl"><label>Entrega prevista</label><select id="entrega"><option value="2031-07-01">No prazo (jul/2031)</option><option value="2032-01-01">+180d tolerância (jan/2032)</option><option value="custom">Atraso (escolher data)</option></select></div>
+      <div class="sl"><label>Data se atrasar</label><input type="date" id="entregaData" value="2031-07-01" disabled></div>
+      <div class="sl"><label>Avaliação na entrega (R$)</label><input type="number" id="aval" step="1000" placeholder="opcional — quando souber"></div>
+    </div>
+    <div class="obsline" id="cdiFonte" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Realizado × projetado <span class="badge">acumulado</span></h3>
+      <p class="desc">Pago efetivo contra a curva projetada (projeção ancorada no INCC real).</p>
+      <div class="chart-box"><canvas id="cAcum"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Por ano</h3>
+      <p class="desc">Desembolso realizado e projetado, ano a ano (total da unidade).</p>
+      <div class="chart-box"><canvas id="cAno"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Composição do all-in atual</h3>
+      <p class="desc">Real pago, projeção do saldo, aportes e custos de entrada.</p>
+      <div class="chart-box"><canvas id="cComp"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Imóvel × renda fixa</h3>
+      <p class="desc">O que sai do bolso contra o que esse dinheiro renderia aplicado, até a entrega.</p>
+      <div class="chart-box"><canvas id="cRet"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel vpl-panel">
+    <h3>Valeu a pena? <span class="badge" id="cdData">entrega jul/2031</span></h3>
+    <p class="desc">Comparação sem suposição de mercado: o que você desembolsa contra o que esse mesmo dinheiro renderia na renda fixa, aplicado parcela a parcela (e aportes) até a entrega.</p>
+    <div class="sim-out">
+      <div class="b"><div class="l">Sai do bolso (total)</div><div class="v" id="cdTotal">—</div></div>
+      <div class="b"><div class="l">Renderia na renda fixa</div><div class="v" id="cdBreak">—</div></div>
+      <div class="b"><div class="l">Custo de oportunidade</div><div class="v" id="cdCusto">—</div></div>
+      <div class="b"><div class="l">Break-even por m²</div><div class="v" id="cdM2">—</div></div>
+      <div class="b"><div class="l">Valorização a.a. p/ empatar</div><div class="v" id="cdValoriz">—</div></div>
+    </div>
+    <p class="desc" id="cdComp" style="margin-top:12px;font-size:12.5px;padding:10px 12px;background:rgba(28,124,140,.06);border-radius:8px;line-height:1.6"></p>
+    <p class="desc" id="cdVeredito" style="margin-top:10px;font-size:13px"></p>
+  </div>
+
   <footer>
     <b>Como o INCC é calculado.</b> Em dia: INCC = valor pago − base. Atrasado: você informa juros e multa, e INCC = pago − base − juros − multa. A projeção do que falta usa a taxa mensal média que você realmente pagou (ou o slider, no modo "e se"). <b>All-in</b> = real pago + projeção do saldo + aportes + ITBI/registro (3,3% s/ R$ 456.010) + ambientação (R$ 12.000).<br>
     <b>Material de apoio à decisão</b> — não é recomendação de investimento.
   </footer>
+</div>
+
+<div class="modal-bg" id="loginModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lgTitle">
+    <h3 id="lgTitle">Entrar para editar</h3>
+    <p class="modal-sub">Acesso restrito a Victor e Dudu. Sem login, o painel fica somente leitura.</p>
+    <label class="modal-l" for="lgEmail">E-mail</label>
+    <select id="lgEmail"></select>
+    <label class="modal-l" for="lgPass">Senha</label>
+    <input type="password" id="lgPass" autocomplete="current-password" placeholder="••••••••">
+    <div class="modal-err" id="lgErr"></div>
+    <div class="modal-acts">
+      <button class="btn ghost" id="lgCancel" type="button">Cancelar</button>
+      <button class="btn" id="lgGo" type="button">Entrar</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -336,6 +385,11 @@ async function bootstrap(){
   $('useObs').addEventListener('change',render);
   $('apBtn').onclick=addAporte;
   $('authBtn').onclick=onAuthClick;
+  $('lgGo').onclick=doLogin;
+  $('lgCancel').onclick=closeLogin;
+  $('lgPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  $('loginModal').addEventListener('click',e=>{if(e.target.id==='loginModal')closeLogin();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLogin();});
   $('fCat').onchange=renderDocs;
   $('fParcela').onchange=renderDocs;
   setupDropzone();
@@ -387,12 +441,24 @@ async function addAporte(){
 
 async function onAuthClick(){
   if(canEdit){await sb.auth.signOut();setSave('');return;}
-  const email=prompt('E-mail de login:',EDITORES[0]);if(!email)return;
-  const password=prompt('Senha:');if(!password)return;
-  setSave('Entrando…');
-  const {error}=await sb.auth.signInWithPassword({email:email.trim(),password});
-  if(error){setSave('');alert('Falha no login: '+error.message);return;}
-  await loadFromDB();setSave('Conectado ✓');render();
+  openLogin();
+}
+function openLogin(){
+  const sel=$('lgEmail');
+  if(sel&&!sel.options.length)sel.innerHTML=EDITORES.map(e=>`<option value="${e}">${e}</option>`).join('');
+  $('lgErr').textContent='';$('lgPass').value='';
+  const m=$('loginModal');m.classList.add('show');m.setAttribute('aria-hidden','false');
+  setTimeout(()=>$('lgPass').focus(),50);
+}
+function closeLogin(){const m=$('loginModal');m.classList.remove('show');m.setAttribute('aria-hidden','true');}
+async function doLogin(){
+  const email=$('lgEmail').value.trim(),password=$('lgPass').value;
+  if(!password){$('lgErr').textContent='Informe a senha.';$('lgPass').focus();return;}
+  $('lgErr').textContent='';$('lgGo').disabled=true;setSave('Entrando…');
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  $('lgGo').disabled=false;
+  if(error){$('lgErr').textContent='Falha no login: '+error.message;setSave('');return;}
+  closeLogin();await loadFromDB();setSave('Conectado ✓');render();
 }
 
 function updateAuthUI(){
