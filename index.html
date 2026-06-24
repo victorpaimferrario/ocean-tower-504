@@ -80,7 +80,10 @@ header h1 .num{color:var(--gold)}
 .sim-out .v{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-top:3px}
 .sim-out .v.extra{color:var(--coral)}
 .tbl-wrap{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:12px}
-table.pg{width:100%;border-collapse:collapse;font-size:12.5px;min-width:900px}
+table.pg{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1060px}
+.docchips{display:flex;gap:4px;flex-wrap:wrap}
+.docchip{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 7px;font-size:14px;line-height:1;cursor:pointer}
+.docchip:hover{background:var(--mist);border-color:var(--teal)}
 table.pg th{position:sticky;top:0;background:var(--ocean);color:#fff;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:8px 9px;text-align:left;z-index:2}
 table.pg td{padding:6px 9px;border-bottom:1px solid var(--line)}
 table.pg tr.paga{background:var(--green-soft)}
@@ -205,7 +208,7 @@ footer b{color:var(--ink)}
     <h3>Parcelas <span class="badge" id="cntPagas">0 pagas</span></h3>
     <p class="desc"><b>Valor pago</b> e <b>data</b> de cada boleto. Se atrasou, preencha <b>juros</b> e <b>multa</b> — o resto vira INCC automaticamente.</p>
     <div class="tbl-wrap"><table class="pg"><thead><tr>
-      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>INCC embutido</th>
+      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>Diferença</th><th>INCC embutido</th><th>Docs</th>
     </tr></thead><tbody id="tbody"></tbody></table></div>
     <div class="addbar">
       <div class="f"><label>Novo aporte — descrição</label><input id="apObs" placeholder="Ex.: revisão de orçamento 2027/1"></div>
@@ -215,44 +218,49 @@ footer b{color:var(--ink)}
     </div>
   </div>
 
-  <div class="panel" id="docsCard">
-    <h3>📎 Documentos <span class="badge" id="docsCount">—</span></h3>
-    <p class="desc">Boletos, comprovantes e documentos do negócio, guardados em cofre privado. Só você e o Dudu (logados) têm acesso.</p>
+  <div class="panel" id="uploadCard">
+    <h3>📎 Anexar documento</h3>
+    <p class="desc">Arraste boletos, comprovantes ou documentos do negócio. Boleto em PDF tem a parcela identificada sozinho; nos demais, o sistema pergunta a que parcela pertence. Cofre privado — só você e o Dudu têm acesso.</p>
 
-    <div class="lockmsg" id="docsLocked" style="display:none">🔒 Entre para editar (botão acima) para ver e anexar os documentos.</div>
+    <div class="lockmsg" id="uploadLocked" style="display:none">🔒 Entre para editar (botão no topo) para anexar documentos.</div>
 
-    <div id="docsArea" style="display:none">
+    <div id="uploadArea" style="display:none">
       <div class="docctrl">
         <div class="f"><label>Tipo do que vou anexar</label>
           <select id="docCat">
-            <option value="boleto">Boleto</option>
+            <option value="boleto">Boleto (da parcela)</option>
             <option value="pix_socios">Comprovante — meu Pix p/ Dudu</option>
             <option value="comprovante_pago">Comprovante — boleto pago</option>
-            <option value="contrato">Contrato</option>
-            <option value="memorial">Memorial</option>
-            <option value="matricula">Matrícula</option>
-            <option value="analise">Análise</option>
+            <option value="contrato">Contrato (negócio)</option>
+            <option value="memorial">Memorial (negócio)</option>
+            <option value="matricula">Matrícula (negócio)</option>
+            <option value="analise">Análise (negócio)</option>
             <option value="outro">Outro</option>
           </select>
         </div>
-        <div class="f"><label>Parcela (opcional)</label><select id="docParcela"></select></div>
       </div>
 
       <div id="dropzone" class="dropzone" role="button" tabindex="0">
         <input id="docFile" type="file" multiple accept="image/*,application/pdf,.pdf" hidden>
         <div class="dz-icon">📎</div>
         <div class="dz-title">Arraste aqui ou <span class="dz-link">toque para escolher</span></div>
-        <div class="dz-sub">Boleto ou comprovante · PDF ou foto · pode soltar vários · no celular abre câmera, galeria ou arquivos</div>
+        <div class="dz-sub">PDF ou foto · pode soltar vários · no celular abre câmera, galeria ou arquivos</div>
       </div>
       <div id="upStatus" class="upstatus" style="display:none"></div>
+    </div>
+  </div>
 
+  <div class="panel" id="docsCard">
+    <h3>🗂️ Documentos do negócio <span class="badge" id="docsCount">—</span></h3>
+    <p class="desc">Contrato, memorial, matrícula e análises — os que não pertencem a uma parcela. Boleto, Pix e comprovante de pagamento ficam na coluna <b>Docs</b> da tabela acima.</p>
+
+    <div class="lockmsg" id="docsLocked" style="display:none">🔒 Entre para editar (botão no topo) para ver os documentos.</div>
+
+    <div id="docsArea" style="display:none">
       <div class="docctrl docfilter">
         <div class="f"><label>Filtrar tipo</label>
           <select id="fCat">
             <option value="">todos</option>
-            <option value="boleto">Boleto</option>
-            <option value="pix_socios">Comprovante — meu Pix p/ Dudu</option>
-            <option value="comprovante_pago">Comprovante — boleto pago</option>
             <option value="contrato">Contrato</option>
             <option value="memorial">Memorial</option>
             <option value="matricula">Matrícula</option>
@@ -260,7 +268,6 @@ footer b{color:var(--ink)}
             <option value="outro">Outro</option>
           </select>
         </div>
-        <div class="f"><label>Filtrar parcela</label><select id="fParcela"></select></div>
       </div>
 
       <div id="docsBody" class="doclist"></div>
@@ -347,6 +354,19 @@ footer b{color:var(--ink)}
   </div>
 </div>
 
+<div class="modal-bg" id="docModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dmTitle">
+    <h3 id="dmTitle">A que parcela pertence?</h3>
+    <p class="modal-sub" id="dmFile">documento</p>
+    <label class="modal-l" for="dmParcela">Parcela</label>
+    <select id="dmParcela"></select>
+    <div class="modal-acts">
+      <button class="btn ghost" id="dmSkip" type="button">Pular este</button>
+      <button class="btn" id="dmGo" type="button">Vincular</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const BRL=(n,d=0)=>'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const PCT=(n,d=1)=>(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
@@ -367,6 +387,8 @@ function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).pad
 let state={itens:[]},charts={},canEdit=false,docs=[],currentEmail=null;
 const BUCKET='ocean504-anexos';
 const CAT_LABEL={boleto:'Boleto',pix_socios:'Meu Pix',comprovante_pago:'Boleto pago',comprovante:'Comprovante',contrato:'Contrato',memorial:'Memorial',matricula:'Matrícula',analise:'Análise',outro:'Outro'};
+const CAT_ICON={boleto:'📄',pix_socios:'💸',comprovante_pago:'✅',comprovante:'🧾',contrato:'📜',memorial:'📐',matricula:'🏷️',analise:'📊',outro:'📎'};
+const CAT_PARCELA=['boleto','pix_socios','comprovante_pago','comprovante']; // docs que pertencem a uma parcela (acessados na tabela); o resto é do negócio
 const SB_URL='https://aipgtnvflezqnhzbpxam.supabase.co';
 const SB_KEY='sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf';
 const EDITORES=['victorpaim@pasf.com.br','eduardodeabreuls@gmail.com'];
@@ -389,9 +411,11 @@ async function bootstrap(){
   $('lgCancel').onclick=closeLogin;
   $('lgPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
   $('loginModal').addEventListener('click',e=>{if(e.target.id==='loginModal')closeLogin();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLogin();});
+  $('dmGo').onclick=()=>resolveDocModal($('dmParcela').value);
+  $('dmSkip').onclick=()=>resolveDocModal('__skip__');
+  $('docModal').addEventListener('click',e=>{if(e.target.id==='docModal')resolveDocModal('__skip__');});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLogin();resolveDocModal('__skip__');}});
   $('fCat').onchange=renderDocs;
-  $('fParcela').onchange=renderDocs;
   setupDropzone();
   fillParcelaSelects();
   await loadDocs();
@@ -435,6 +459,7 @@ async function addAporte(){
   const {error}=await sb.from('ocean504_parcelas').insert(row);
   if(error){setSave('Erro: '+error.message);alert('Erro ao salvar aporte: '+error.message);return;}
   state.itens.push(row);
+  fillParcelaSelects();
   $('apVal').value='';$('apObs').value='';$('apData').value='';
   setSave('Salvo ✓');render();
 }
@@ -471,11 +496,8 @@ function updateAuthUI(){
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
 function fillParcelaSelects(){
-  const reais=state.itens.filter(i=>i.tipo!=='aporte');
-  const up='<option value="">— nenhuma —</option>'+reais.map(i=>`<option value="${i.id}">${esc(i.ref)}</option>`).join('');
-  const fl='<option value="">todas</option>'+reais.map(i=>`<option value="${i.id}">${esc(i.ref)}</option>`).join('');
-  if($('docParcela'))$('docParcela').innerHTML=up;
-  if($('fParcela'))$('fParcela').innerHTML=fl;
+  const opts=state.itens.map(i=>`<option value="${i.id}">${esc(i.ref)}</option>`).join('');
+  if($('dmParcela'))$('dmParcela').innerHTML=opts;
 }
 
 async function loadDocs(){
@@ -487,24 +509,24 @@ async function loadDocs(){
 
 function renderDocs(){
   const locked=$('docsLocked'),area=$('docsArea'),cnt=$('docsCount');
-  if(!canEdit){locked.style.display='';area.style.display='none';cnt.textContent='🔒';return;}
+  const upLocked=$('uploadLocked'),upArea=$('uploadArea');
+  if(!canEdit){locked.style.display='';area.style.display='none';cnt.textContent='🔒';
+    upLocked.style.display='';upArea.style.display='none';return;}
+  upLocked.style.display='none';upArea.style.display='';
   locked.style.display='none';area.style.display='';
-  const fc=$('fCat').value,fp=$('fParcela').value;
-  let list=docs.slice();
+  const fc=$('fCat').value;
+  let list=docs.filter(d=>!CAT_PARCELA.includes(d.categoria));
   if(fc)list=list.filter(d=>d.categoria===fc);
-  if(fp)list=list.filter(d=>String(d.parcela_id)===fp);
-  cnt.textContent=docs.length+' arquivo'+(docs.length===1?'':'s');
-  const pref={};state.itens.forEach(i=>pref[i.id]=i.ref);
-  if(!list.length){$('docsBody').innerHTML='<div class="docempty">nenhum documento'+(fc||fp?' com esse filtro':' ainda — arraste o primeiro acima')+'</div>';return;}
+  cnt.textContent=list.length+' arquivo'+(list.length===1?'':'s');
+  if(!list.length){$('docsBody').innerHTML='<div class="docempty">nenhum documento do negócio'+(fc?' com esse filtro':' ainda — arraste contrato, memorial ou matrícula acima')+'</div>';return;}
   $('docsBody').innerHTML=list.map(d=>{
-    const par=d.parcela_id?esc(pref[d.parcela_id]||('#'+d.parcela_id)):'';
     const dt=d.created_at?new Date(d.created_at).toLocaleDateString('pt-BR'):'';
     const quem=esc((d.enviado_por||'').split('@')[0]);
     const ep=encodeURIComponent(d.arquivo);
     return `<div class="doccard">
       <div class="dc-main">
         <div class="dc-title">${esc(d.titulo)}</div>
-        <div class="dc-meta"><span class="cat">${CAT_LABEL[d.categoria]||esc(d.categoria)}</span>${par?'<span>'+par+'</span>':''}<span>· ${quem}</span><span>· ${dt}</span></div>
+        <div class="dc-meta"><span class="cat">${CAT_LABEL[d.categoria]||esc(d.categoria)}</span><span>· ${quem}</span><span>· ${dt}</span></div>
       </div>
       <div class="dc-acts">
         <button class="docbtn" data-open="${ep}">Abrir</button>
@@ -529,22 +551,46 @@ function setupDropzone(){
   dz.addEventListener('drop',e=>{const f=e.dataTransfer.files;if(f&&f.length)uploadFiles(f);});
 }
 
+let _docResolve=null;
+function askParcela(fileName){
+  return new Promise(res=>{
+    _docResolve=res;
+    $('dmFile').textContent=fileName;
+    const sel=$('dmParcela');if(sel&&!sel.options.length)fillParcelaSelects();
+    const m=$('docModal');m.classList.add('show');m.setAttribute('aria-hidden','false');
+  });
+}
+function resolveDocModal(val){
+  const m=$('docModal');if(!m.classList.contains('show'))return;
+  m.classList.remove('show');m.setAttribute('aria-hidden','true');
+  if(_docResolve){const r=_docResolve;_docResolve=null;r(val);}
+}
+
 async function uploadFiles(fileList){
   if(!canEdit){alert('Entre para editar.');return;}
   const files=Array.from(fileList);
-  const cat=$('docCat').value, parcelaSel=$('docParcela').value||null;
+  const cat=$('docCat').value, isParcelaCat=CAT_PARCELA.includes(cat);
   let ok=0,fail=0,ultimoVinc='',pixInfo=null;
   for(let i=0;i<files.length;i++){
     const file=files[i];
     if(file.size>25*1024*1024){fail++;upMsg('⚠️ '+file.name+' passou de 25 MB — pulado');continue;}
-    let parcela=parcelaSel, vinc='';
-    if(!parcela && cat==='boleto' && /pdf/i.test((file.type||'')+file.name)){
-      upMsg('📄 Lendo '+file.name+'…');
-      const lido=await lerBoleto(file);
-      const m=casarParcela(lido);
-      if(m){parcela=String(m.id);vinc=m.ref;
-        const vb=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):m.valor_base;
-        pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100};
+    let parcela=null, vinc='';
+    if(isParcelaCat){
+      if(cat==='boleto' && /pdf/i.test((file.type||'')+file.name)){
+        upMsg('📄 Lendo '+file.name+'…');
+        const lido=await lerBoleto(file);
+        const m=casarParcela(lido);
+        if(m){parcela=String(m.id);vinc=m.ref;
+          const vb=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):m.valor_base;
+          pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100};
+        }
+      }
+      if(!parcela){
+        const escolha=await askParcela(file.name);
+        if(escolha==='__skip__'){upMsg('↪️ '+file.name+' pulado');continue;}
+        parcela=escolha||null;
+        const it=state.itens.find(x=>String(x.id)===String(parcela));
+        if(it)vinc=it.ref;
       }
     }
     upMsg('Enviando '+(i+1)+'/'+files.length+': '+file.name+(vinc?' → '+vinc:'')+'…');
@@ -700,11 +746,11 @@ function initCharts(){
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
 }
 
-function docsIndex(){const m={};(docs||[]).forEach(d=>{if(d.parcela_id){(m[d.parcela_id]||(m[d.parcela_id]=new Set())).add(d.categoria);}});return m;}
-function selosParcela(pid,di){
-  const set=di[pid]||new Set();
-  const item=(cat,ic,t)=>`<span class="ps${set.has(cat)?' on':''}" title="${t}">${ic}</span>`;
-  return `<div class="pstatus">${item('boleto','📄','Boleto')}${item('pix_socios','💸','Meu Pix p/ Dudu')}${item('comprovante_pago','✅','Boleto pago')}</div>`;
+function docsByParcela(){const m={};(docs||[]).forEach(d=>{if(d.parcela_id){(m[d.parcela_id]||(m[d.parcela_id]=[])).push(d);}});return m;}
+function docChips(pid,by){
+  const list=by[pid]||[];
+  if(!list.length)return '<span class="proj">—</span>';
+  return '<div class="docchips">'+list.map(d=>`<button class="docchip" data-docopen="${encodeURIComponent(d.arquivo)}" title="${esc((CAT_LABEL[d.categoria]||d.categoria)+': '+d.titulo)}">${CAT_ICON[d.categoria]||'📎'}</button>`).join('')+'</div>';
 }
 
 function render(){
@@ -735,16 +781,17 @@ function renderAlert(){
 
 function renderTable(c){
   const tb=$('tbody');tb.innerHTML='';
-  const di=docsIndex();
+  const by=docsByParcela();
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const sorted=[...state.itens].sort((a,b)=>(a.vencimento||'9999').localeCompare(b.vencimento||'9999'));
   sorted.forEach(r=>{
     const isAp=r.tipo==='aporte';
     const vencida=!isAp&&r.valor_pago==null&&r.vencimento&&new Date(r.vencimento+'T00:00:00')<hoje;
     const incc=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa):null;
+    const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
     const meio=r.valor_base/2;
     const tr=document.createElement('tr');tr.className=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));
-    tr.innerHTML=`<td><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${(!isAp&&canEdit)?selosParcela(r.id,di):''}</td>
+    tr.innerHTML=`<td><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}</td>
       <td>${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj">${isAp?'—':BRL(r.valor_base,0)}</td>
       <td class="metade">${isAp?'—':BRL(meio,0)}</td>
@@ -752,7 +799,9 @@ function renderTable(c){
       <td><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
       <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
       <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
-      <td>${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>`;
+      <td>${dif!=null&&!isAp?'<span class="'+(dif>=0?'incc-ok':'incc-bad')+'">'+BRL(dif,2)+'</span>':'—'}</td>
+      <td>${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>
+      <td>${canEdit?docChips(r.id,by):'<span class="proj">—</span>'}</td>`;
     tb.appendChild(tr);
   });
   tb.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{
@@ -760,6 +809,7 @@ function renderTable(c){
     v=(f==='data_pagamento')?(v||null):(v===''?null:parseFloat(v));
     const row=state.itens.find(x=>x.id===id);if(row){row[f]=v;saveRow(row);}render();
   }));
+  tb.querySelectorAll('[data-docopen]').forEach(b=>b.onclick=()=>openDoc(decodeURIComponent(b.dataset.docopen)));
 }
 
 function renderCharts(c){
