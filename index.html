@@ -279,7 +279,7 @@ footer b{color:var(--ink)}
   <div class="section-div"><span>Análise de investimento</span></div>
 
   <div class="controls">
-    <h2>Projeção e cenário de renda fixa</h2>
+    <h2>Projeção, renda fixa e cenário de venda</h2>
     <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
     <label class="toggle"><input type="checkbox" id="useObs" checked> Usar o INCC real que já paguei (recomendado). Desmarque para simular um cenário "e se".</label>
     <div class="sliders">
@@ -289,7 +289,11 @@ footer b{color:var(--ink)}
       <div class="sl"><label>Tributação da aplicação</label><select id="trib"><option value="isento">Isenta (LCI/LCA)</option><option value="trib">Tributada (IR)</option></select></div>
       <div class="sl"><label>Entrega prevista</label><select id="entrega"><option value="2031-07-01">No prazo (jul/2031)</option><option value="2032-01-01">+180d tolerância (jan/2032)</option><option value="custom">Atraso (escolher data)</option></select></div>
       <div class="sl"><label>Data se atrasar</label><input type="date" id="entregaData" value="2031-07-01" disabled></div>
-      <div class="sl"><label>Avaliação na entrega (R$)</label><input type="number" id="aval" step="1000" placeholder="opcional — quando souber"></div>
+      <div class="sl"><label>Valor de venda esperado (R$)</label><input type="number" id="aval" step="1000" placeholder="quando souber / simular"></div>
+      <div class="sl"><label>Corretagem na venda (%)</label><input type="number" id="corret" step="0.5" value="5"></div>
+      <div class="sl"><label>Custos de venda — cartório/jurídico (R$)</label><input type="number" id="custoVenda" step="500" value="0"></div>
+      <div class="sl"><label>IR sobre ganho de capital</label><select id="irganho"><option value="15">15% (padrão)</option><option value="isento">Isento</option></select></div>
+      <div class="sl"><label>IPCA a.a. — p/ retorno real (%)</label><input type="number" id="ipca" step="0.1" value="4.5"></div>
     </div>
     <div class="obsline" id="cdiFonte" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
   </div>
@@ -321,14 +325,15 @@ footer b{color:var(--ink)}
   </div>
 
   <div class="panel vpl-panel">
-    <h3>Valeu a pena? <span class="badge" id="cdData">entrega jul/2031</span></h3>
-    <p class="desc">Comparação sem suposição de mercado: o que você desembolsa contra o que esse mesmo dinheiro renderia na renda fixa, aplicado parcela a parcela (e aportes) até a entrega.</p>
+    <h3>Vale a pena vender na entrega? <span class="badge" id="cdData">entrega jul/2031</span></h3>
+    <p class="desc">O que você desembolsa contra o que esse mesmo dinheiro renderia na renda fixa — e, se vender, quanto sobra líquido depois de corretagem, cartório e IR de ganho de capital.</p>
     <div class="sim-out">
-      <div class="b"><div class="l">Sai do bolso (total)</div><div class="v" id="cdTotal">—</div></div>
-      <div class="b"><div class="l">Renderia na renda fixa</div><div class="v" id="cdBreak">—</div></div>
-      <div class="b"><div class="l">Custo de oportunidade</div><div class="v" id="cdCusto">—</div></div>
-      <div class="b"><div class="l">Break-even por m²</div><div class="v" id="cdM2">—</div></div>
-      <div class="b"><div class="l">Valorização a.a. p/ empatar</div><div class="v" id="cdValoriz">—</div></div>
+      <div class="b"><div class="l">Sai do bolso (all-in)</div><div class="v" id="cdTotal">—</div></div>
+      <div class="b"><div class="l">Renda fixa na entrega</div><div class="v" id="cdBreak">—</div></div>
+      <div class="b"><div class="l">Preço de venda sugerido</div><div class="v" id="cdSug">—</div></div>
+      <div class="b"><div class="l">Líquido da sua venda</div><div class="v" id="cdLiq">—</div></div>
+      <div class="b"><div class="l">TIR da revenda</div><div class="v" id="cdTir">—</div></div>
+      <div class="b"><div class="l">MOIC (múltiplo)</div><div class="v" id="cdMoic">—</div></div>
     </div>
     <p class="desc" id="cdComp" style="margin-top:12px;font-size:12.5px;padding:10px 12px;background:rgba(28,124,140,.06);border-radius:8px;line-height:1.6"></p>
     <p class="desc" id="cdVeredito" style="margin-top:10px;font-size:13px"></p>
@@ -413,7 +418,7 @@ async function bootstrap(){
   sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
   await loadFromDB();
   ['incc','cdi','pctcdi'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
-  ['trib','aval','entregaData'].forEach(id=>$(id).addEventListener('change',render));
+  ['trib','aval','entregaData','corret','custoVenda','irganho','ipca'].forEach(id=>$(id).addEventListener('change',render));
   $('entrega').addEventListener('change',()=>{const cu=$('entrega').value==='custom';$('entregaData').disabled=!cu;if(cu&&!$('entregaData').value)$('entregaData').value='2031-12-01';render();});
   $('useObs').addEventListener('change',render);
   $('apBtn').onclick=addAporte;
@@ -899,45 +904,67 @@ function analisar(c){
   const s=c.s, ENT=getEntrega(), anosE=Math.max(0.01,yearsBetween(T0,ENT));
   const taxa=s.cdi*s.pctcdi, isento=s.trib!=='trib';
   const aplica=(val,d)=>{const a=Math.max(0,yearsBetween(d,ENT));const vf=val*Math.pow(1+taxa,a);if(isento)return vf;const g=vf-val;return val+g*(1-aliqIR(a));};
-  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0;
+  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0;const flows=[];
   state.itens.forEach(r=>{
-    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;vfRF+=aplica(val,d);}return;}
+    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;vfRF+=aplica(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});}return;}
     const val=r.valor_pago!=null?num(r.valor_pago):r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
     const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
-    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfRF+=aplica(val,d);
+    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfRF+=aplica(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });
-  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,T0);
+  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,T0);flows.push({t:0,cf:-(ENTRADA+AMB)});
   const valorHoje=M2BASE*AREA;
+  // --- cenário de saída (revenda) ---
+  const venda=parseFloat($('aval').value)||0;
+  const corret=(parseFloat($('corret').value)||0)/100;
+  const custoVenda=parseFloat($('custoVenda').value)||0;
+  const isentoG=$('irganho').value==='isento';
+  const ipca=(parseFloat($('ipca').value)||0)/100;
+  const liquidoDe=(P)=>{if(!P)return 0;const apos=P*(1-corret)-custoVenda;const ganho=apos-totalNom;const ir=isentoG?0:0.15*Math.max(0,ganho);return apos-ir;};
+  // preço de venda bruto p/ o líquido empatar com a renda fixa
+  let precoSugerido;
+  const semIR=(vfRF+custoVenda)/(1-corret);
+  if(isentoG){precoSugerido=semIR;}
+  else{const Atgt=(vfRF-0.15*totalNom)/0.85;const comIR=(Atgt+custoVenda)/(1-corret);
+    precoSugerido=(comIR*(1-corret)-custoVenda>totalNom)?comIR:semIR;}
+  const liquido=liquidoDe(venda), custosSaida=venda?(venda-liquido):0;
+  let tir=null,moic=null,tirReal=null;
+  if(venda){const f2=flows.concat([{t:anosE,cf:liquido}]);tir=irr(f2);moic=liquido/totalNom;if(tir!=null)tirReal=(1+tir)/(1+ipca)-1;}
   return {ENT,anosE,taxa,isento,pct:s.pctcdi,totalNom,vfRF,nominalParc,pagoOuProj,aportesTot,
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
-    breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj};
+    breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj,
+    venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal};
 }
 
 function renderCusto(c){
   const a=analisar(c);
   let comp='<b>Sai do bolso:</b> nominal '+BRL(a.nominalParc)+' + INCC '+BRL(a.correcao);
   if(a.aportesTot>0)comp+=' + aportes extras '+BRL(a.aportesTot);
-  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(a.totalNom)+'</b>';
+  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(a.totalNom)+'</b>. Break-even por m²: <b>'+BRL(a.breakM2)+'/m²</b> (valorização de '+PCT(a.valorizNec*100,1)+' a.a. p/ empatar).';
   $('cdComp').innerHTML=comp;
-  $('cdTotal').textContent=BRL(a.totalNom);
-  $('cdBreak').textContent=BRL(a.breakeven);
-  $('cdCusto').textContent=BRL(a.custoOp);
-  $('cdM2').textContent=BRL(a.breakM2)+'/m²';
-  $('cdValoriz').textContent=PCT(a.valorizNec*100,1)+' a.a.';
   $('cdData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+  $('cdTotal').textContent=BRL(a.totalNom);
+  $('cdBreak').textContent=BRL(a.vfRF);
+  $('cdSug').textContent=BRL(a.precoSugerido);
   const regime=a.isento?'isenta':'tributada';
-  let txt='Aplicando suas parcelas e aportes a <b>'+PCT(a.taxa*100,2)+' a.a.</b> ('+regime+', '+Math.round(a.pct*100)+'% do CDI) até a entrega, você teria <b>'+BRL(a.breakeven)+'</b>. Para o imóvel ter valido mais que a renda fixa, precisa valer mais que <b>'+BRL(a.breakM2)+'/m²</b> na entrega — valorização de <b>'+PCT(a.valorizNec*100,1)+' a.a.</b> sobre os '+BRL(a.valorHoje/AREA)+'/m² de hoje.';
-  const aval=parseFloat($('aval').value);
-  const vz=$('cdValoriz');
-  if(!isNaN(aval)&&aval>0){
-    const dif=aval-a.breakeven, ok=dif>=0;
-    vz.className='v '+(ok?'pos':'neg');
-    txt+=' <b>Com a avaliação informada ('+BRL(aval)+'): '+(ok?'o imóvel BATEU a renda fixa (+'+BRL(dif)+')':'a renda fixa teria sido melhor (−'+BRL(Math.abs(dif))+')')+'.</b>';
+  const liq=$('cdLiq'),tirEl=$('cdTir');
+  if(a.venda){
+    liq.textContent=BRL(a.liquido);
+    tirEl.textContent=a.tir!=null?PCT(a.tir*100,1)+' a.a.':'—';
+    $('cdMoic').textContent=a.moic.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'×';
+    const bateu=a.liquido>=a.vfRF, dif=a.liquido-a.vfRF;
+    liq.className='v '+(bateu?'pos':'neg');
+    tirEl.className='v '+(a.tir!=null&&a.tir>=a.taxa?'pos':'neg');
+    let txt='Vendendo por <b>'+BRL(a.venda)+'</b>, após corretagem ('+PCT(a.corret*100,1)+'), custos '+BRL(a.custoVenda)+' e IR de ganho ('+(a.isentoG?'isento':'15%')+'), sobram <b>'+BRL(a.liquido)+'</b> líquidos — custos de saída de '+BRL(a.custosSaida)+'. ';
+    txt+='<b>'+(bateu?'BATEU a renda fixa (+'+BRL(dif)+')':'a renda fixa teria sido melhor (−'+BRL(Math.abs(dif))+')')+'.</b> ';
+    txt+='TIR da revenda <b>'+(a.tir!=null?PCT(a.tir*100,1):'—')+' a.a.</b> vs renda fixa '+PCT(a.taxa*100,2)+' a.a. ('+regime+')';
+    if(a.tirReal!=null)txt+='; em termos reais (IPCA '+PCT(a.ipca*100,1)+') ≈ <b>'+PCT(a.tirReal*100,1)+' a.a.</b>';
+    txt+='. Custo de oportunidade: '+BRL(a.custoOp)+'. Valores totais; sua parte é a metade.';
+    $('cdVeredito').innerHTML='<b>Leitura:</b> '+txt;
   } else {
-    vz.className='v';
-    txt+=' <span style="color:var(--muted)">Pelo custo corrigido (INCC), o imóvel valeria ~'+BRL(a.inccProxy)+' — naturalmente abaixo do break-even enquanto o CDI supera o INCC. Informe a avaliação na entrega para o veredito final.</span>';
+    liq.textContent='—';tirEl.textContent='—';$('cdMoic').textContent='—';
+    liq.className='v';tirEl.className='v';
+    $('cdVeredito').innerHTML='<b>Leitura:</b> Preencha o <b>valor de venda esperado</b> (e corretagem/custos) para ver o líquido, a TIR e o veredito. O <b>preço de venda sugerido</b> ('+BRL(a.precoSugerido)+') é quanto você precisa vender para, depois de todos os custos de saída, empatar com a renda fixa ('+BRL(a.vfRF)+').';
   }
-  $('cdVeredito').innerHTML='<b>Leitura:</b> '+txt+' <span style="color:var(--muted)">Custo de oportunidade: '+BRL(a.custoOp)+'. Valores totais da unidade; sua parte é a metade.</span>';
 }
 
 bootstrap();
