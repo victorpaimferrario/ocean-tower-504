@@ -339,6 +339,35 @@ footer b{color:var(--ink)}
     <p class="desc" id="cdVeredito" style="margin-top:10px;font-size:13px"></p>
   </div>
 
+  <div class="controls">
+    <h2>Cenário de manter e alugar</h2>
+    <div class="obsline" style="font-size:12px;color:var(--muted)">⚠️ Aqui entram <b>premissas de mercado</b> (aluguel e valorização) — ao contrário do resto do painel, que só usa dado real. Edite à vontade para simular. Usa o <b>valor de venda esperado</b> informado acima como valor do imóvel na entrega.</div>
+    <div class="sliders">
+      <div class="sl"><label>Aluguel mensal estimado (R$)</label><input type="number" id="alug" step="100" placeholder="0"></div>
+      <div class="sl"><label>Reajuste do aluguel (% a.a.)</label><input type="number" id="reajAlug" step="0.1" value="4.5"></div>
+      <div class="sl"><label>Vacância (%)</label><input type="number" id="vac" step="1" value="8"></div>
+      <div class="sl"><label>Custos sobre o aluguel — adm+manut (%)</label><input type="number" id="opex" step="1" value="15"></div>
+      <div class="sl"><label>Custos fixos do proprietário (R$/ano)</label><input type="number" id="custoFixo" step="500" value="0"></div>
+      <div class="sl"><label>IR sobre aluguel (%)</label><input type="number" id="irAlug" step="0.5" value="27.5"></div>
+      <div class="sl"><label>Horizonte de permanência (anos)</label><input type="number" id="horizonte" step="1" value="5"></div>
+      <div class="sl"><label>Valorização do imóvel (% a.a.)</label><input type="number" id="valoriz" step="0.5" value="4"></div>
+    </div>
+  </div>
+
+  <div class="panel vpl-panel">
+    <h3>Manter e alugar <span class="badge" id="alData">horizonte 5 anos</span></h3>
+    <p class="desc">Se, em vez de vender na entrega, você mantém e aluga por um período e vende depois. As premissas de aluguel e valorização são suas (bloco acima).</p>
+    <div class="sim-out">
+      <div class="b"><div class="l">Aluguel líquido / mês</div><div class="v" id="alLiqMes">—</div></div>
+      <div class="b"><div class="l">Yield bruto</div><div class="v" id="alYieldB">—</div></div>
+      <div class="b"><div class="l">Cap rate (líq. de custos)</div><div class="v" id="alCap">—</div></div>
+      <div class="b"><div class="l">Cash-on-cash (s/ custo)</div><div class="v" id="alCoC">—</div></div>
+      <div class="b"><div class="l">Payback do aluguel</div><div class="v" id="alPay">—</div></div>
+      <div class="b"><div class="l">TIR de manter</div><div class="v" id="alTir">—</div></div>
+    </div>
+    <p class="desc" id="alVeredito" style="margin-top:10px;font-size:13px"></p>
+  </div>
+
   <footer>
     <b>Como o INCC é calculado.</b> Em dia: INCC = valor pago − base. Atrasado: você informa juros e multa, e INCC = pago − base − juros − multa. A projeção do que falta usa a taxa mensal média que você realmente pagou (ou o slider, no modo "e se"). <b>All-in</b> = real pago + projeção do saldo + aportes + ITBI/registro (3,3% s/ R$ 456.010) + ambientação (R$ 12.000).<br>
     <b>Material de apoio à decisão</b> — não é recomendação de investimento.
@@ -419,6 +448,7 @@ async function bootstrap(){
   await loadFromDB();
   ['incc','cdi','pctcdi'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
   ['trib','aval','entregaData','corret','custoVenda','irganho','ipca'].forEach(id=>$(id).addEventListener('change',render));
+  ['alug','reajAlug','vac','opex','custoFixo','irAlug','horizonte','valoriz'].forEach(id=>$(id).addEventListener('change',render));
   $('entrega').addEventListener('change',()=>{const cu=$('entrega').value==='custom';$('entregaData').disabled=!cu;if(cu&&!$('entregaData').value)$('entregaData').value='2031-12-01';render();});
   $('useObs').addEventListener('change',render);
   $('apBtn').onclick=addAporte;
@@ -826,7 +856,7 @@ function render(){
   $('kFalta').textContent=BRL(c.falta);$('kFaltaSub').textContent=(c.parc.length-npagas)+' parcelas a pagar';
   $('kIncc').textContent=BRL(c.inccPago);
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);
+  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);
 }
 
 function renderAlert(){
@@ -932,7 +962,31 @@ function analisar(c){
   return {ENT,anosE,taxa,isento,pct:s.pctcdi,totalNom,vfRF,nominalParc,pagoOuProj,aportesTot,
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
     breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj,
-    venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal};
+    venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows};
+}
+
+function analisarRenda(a){
+  const Pent=a.venda;
+  const alug=parseFloat($('alug').value)||0;
+  const reaj=(parseFloat($('reajAlug').value)||0)/100;
+  const vac=(parseFloat($('vac').value)||0)/100;
+  const opex=(parseFloat($('opex').value)||0)/100;
+  const fixo=parseFloat($('custoFixo').value)||0;
+  const irA=(parseFloat($('irAlug').value)||0)/100;
+  const H=Math.max(1,Math.round(parseFloat($('horizonte').value)||5));
+  const val=(parseFloat($('valoriz').value)||0)/100;
+  if(!alug||!Pent)return {ok:false,H};
+  const liqAno=k=>{const b=alug*12*Math.pow(1+reaj,k-1);const e=b*(1-vac);const n=e*(1-opex)-fixo;return n*(1-irA);};
+  const brutoAno1=alug*12, efet1=brutoAno1*(1-vac), noi1=efet1*(1-opex)-fixo, liq1=noi1*(1-irA);
+  const yieldB=brutoAno1/Pent, cap=noi1/Pent, yieldL=liq1/Pent, coc=liq1/a.totalNom;
+  let acc=0,pay=null;for(let k=1;k<=50;k++){acc+=liqAno(k);if(acc>=a.totalNom){pay=k;break;}}
+  const flows=a.flows.slice(); let somaL=0;
+  for(let k=1;k<=H;k++){const l=liqAno(k);somaL+=l;flows.push({t:a.anosE+k,cf:l});}
+  const Pterm=Pent*Math.pow(1+val,H);
+  const aposT=Pterm*(1-a.corret)-a.custoVenda, ganhoT=aposT-a.totalNom, irT=a.isentoG?0:0.15*Math.max(0,ganhoT), liqTerm=aposT-irT;
+  flows.push({t:a.anosE+H,cf:liqTerm});
+  const tir=irr(flows), tirReal=tir!=null?(1+tir)/(1+a.ipca)-1:null, moic=(somaL+liqTerm)/a.totalNom;
+  return {ok:true,H,Pent,alug,vac,irA,liq1,yieldB,cap,yieldL,coc,pay,tir,tirReal,Pterm,liqTerm,moic,val};
 }
 
 function renderCusto(c){
@@ -965,6 +1019,31 @@ function renderCusto(c){
     liq.className='v';tirEl.className='v';
     $('cdVeredito').innerHTML='<b>Leitura:</b> Preencha o <b>valor de venda esperado</b> (e corretagem/custos) para ver o líquido, a TIR e o veredito. O <b>preço de venda sugerido</b> ('+BRL(a.precoSugerido)+') é quanto você precisa vender para, depois de todos os custos de saída, empatar com a renda fixa ('+BRL(a.vfRF)+').';
   }
+}
+
+function renderRenda(c){
+  const a=analisar(c), r=analisarRenda(a);
+  $('alData').textContent='horizonte '+r.H+' anos';
+  if(!r.ok){
+    ['alLiqMes','alYieldB','alCap','alCoC','alPay','alTir'].forEach(id=>{$(id).textContent='—';$(id).className='v';});
+    $('alVeredito').innerHTML='<b>Leitura:</b> Preencha o <b>aluguel mensal</b> e o <b>valor de venda esperado</b> (na seção de venda, acima) para ver yield, cap rate e a TIR de manter.';
+    return;
+  }
+  $('alLiqMes').textContent=BRL(r.liq1/12);
+  $('alYieldB').textContent=PCT(r.yieldB*100,2)+' a.a.';
+  $('alCap').textContent=PCT(r.cap*100,2)+' a.a.';
+  $('alCoC').textContent=PCT(r.coc*100,2)+' a.a.';
+  $('alPay').textContent=r.pay?r.pay+' anos':'>50 anos';
+  $('alTir').textContent=r.tir!=null?PCT(r.tir*100,1)+' a.a.':'—';
+  $('alTir').className='v '+(r.tir!=null&&r.tir>=a.taxa?'pos':'neg');
+  let txt='Alugando por '+BRL(r.alug)+'/mês (vacância '+PCT(r.vac*100,0)+', IR '+PCT(r.irA*100,1)+'), sobram ~'+BRL(r.liq1/12)+'/mês líquidos. Mantendo '+r.H+' anos e vendendo a '+BRL(r.Pterm)+' (valorização '+PCT(r.val*100,1)+' a.a.), a <b>TIR de manter é '+(r.tir!=null?PCT(r.tir*100,1):'—')+' a.a.</b>'+(r.tirReal!=null?' (real ~'+PCT(r.tirReal*100,1)+')':'')+'.';
+  if(a.tir!=null){
+    const melhor=r.tir>a.tir?'MANTER e alugar':'VENDER na entrega';
+    txt+=' <b>Decisão — vender ('+PCT(a.tir*100,1)+') × manter ('+(r.tir!=null?PCT(r.tir*100,1):'—')+') × renda fixa ('+PCT(a.taxa*100,2)+'): melhor é '+melhor+'.</b>';
+  } else {
+    txt+=' <span style="color:var(--muted)">Preencha o valor de venda esperado para comparar vender × manter lado a lado.</span>';
+  }
+  $('alVeredito').innerHTML='<b>Leitura:</b> '+txt;
 }
 
 bootstrap();
