@@ -654,9 +654,10 @@ async function uploadFiles(fileList,catId,statusId,inpId){
   for(let i=0;i<files.length;i++){
     const file=files[i];
     if(file.size>25*1024*1024){fail++;upMsg(st,'⚠️ '+file.name+' passou de 25 MB — pulado');continue;}
-    let parcela=null, vinc='', autoFoco=false;
+    let parcela=null, vinc='', autoFoco=false, validacao=null;
     if(isParcelaCat){
-      if(cat==='boleto' && /pdf/i.test((file.type||'')+file.name)){
+      const isPDF=/pdf/i.test((file.type||'')+file.name);
+      if(cat==='boleto' && isPDF){
         upMsg(st,'📄 Lendo '+file.name+'…');
         const lido=await lerBoleto(file);
         const m=casarParcela(lido);
@@ -664,8 +665,15 @@ async function uploadFiles(fileList,catId,statusId,inpId){
           const vb=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):m.valor_base;
           pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100};
         }
+      } else if(cat!=='boleto' && isPDF){
+        // Pix/Pagamento em PDF: o foco (boleto, com vencimento único) manda; a leitura VALIDA.
+        // Sem foco, tenta identificar pelo conteúdo (valor — ambíguo entre parcelas de mesmo valor).
+        upMsg(st,'📄 Lendo '+file.name+'…');
+        const lido=await lerBoleto(file);
+        let m=parcelaFoco?state.itens.find(x=>String(x.id)===String(parcelaFoco.id)):(cat==='pix_socios'?casarPix(lido):casarPagamento(lido));
+        if(m){parcela=String(m.id);vinc=m.ref;autoFoco=true;validacao=validarDoc(cat,lido,m);}
       }
-      // Pix/Pagamento: usa a "parcela em foco" (do último boleto/doc) sem perguntar
+      // imagem (ou PDF sem leitura): usa a "parcela em foco" sem perguntar
       if(!parcela && cat!=='boleto' && parcelaFoco){parcela=String(parcelaFoco.id);vinc=parcelaFoco.ref;autoFoco=true;}
       if(!parcela){
         const escolha=await askParcela(file.name);
@@ -682,7 +690,7 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     if(up.error){fail++;upMsg(st,'Erro em '+file.name+': '+up.error.message);continue;}
     const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail}).select('id').single();
     if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg(st,'Erro ao indexar '+file.name);continue;}
-    ok++; if(vinc){ultimoVinc=vinc;lastVinc={cat,ref:vinc,id:ins.data&&ins.data.id,auto:autoFoco};}
+    ok++; if(vinc){ultimoVinc=vinc;lastVinc={cat,ref:vinc,id:ins.data&&ins.data.id,auto:autoFoco,nota:validacao?validacao.nota:'',alerta:validacao?validacao.alerta:false};}
   }
   if($(inpId))$(inpId).value='';
   await loadDocs();renderDocs();render();
@@ -696,7 +704,10 @@ async function uploadFiles(fileList,catId,statusId,inpId){
 
 function upMsgVinc(st,info){
   st.style.display='';st.classList.remove('pix');
-  st.innerHTML=`✓ ${esc(CAT_LABEL[info.cat]||info.cat)} vinculado a <b>${esc(info.ref)}</b> `
+  const icon=info.alerta?'⚠️':'✓';
+  const verbo=info.alerta?'anexado em':'vinculado a';
+  const extra=info.nota?` <span style="color:var(--muted)">(${esc(info.nota)})</span>`:'';
+  st.innerHTML=`${icon} ${esc(CAT_LABEL[info.cat]||info.cat)} ${verbo} <b>${esc(info.ref)}</b>${extra} `
     +`<button class="docbtn" id="trVinc">trocar parcela</button>`;
   const b=$('trVinc');if(b)b.onclick=async()=>{
     const escolha=await askParcela('Trocar a parcela deste documento');
@@ -754,8 +765,9 @@ async function ensurePdfjs(){
   try{_pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
   return _pdfjs;
 }
-async function lerBoleto(file){
-  try{
+function lerBoleto(file){
+  // lê o PDF; com timeout p/ nunca travar o upload se o pdf.js demorar/falhar
+  const work=(async()=>{
     const lib=await ensurePdfjs();
     const buf=await file.arrayBuffer();
     const pdf=await lib.getDocument({data:buf}).promise;
@@ -764,8 +776,36 @@ async function lerBoleto(file){
     for(let p=1;p<=np;p++){const pg=await pdf.getPage(p);const c=await pg.getTextContent();txt+=' '+c.items.map(it=>it.str).join(' ');}
     const datas=[...new Set([...txt.matchAll(/(\d{2})\/(\d{2})\/(20\d{2})/g)].map(m=>m[3]+'-'+m[2]+'-'+m[1]))];
     const valores=[...txt.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
-    return {datas,valores};
-  }catch(e){console.warn('leitura boleto falhou',e);return null;}
+    return {datas,valores,texto:txt.toLowerCase()};
+  })().catch(e=>{console.warn('leitura PDF falhou',e);return null;});
+  return Promise.race([work,new Promise(r=>setTimeout(()=>r(null),9000))]);
+}
+const BENEF_PIX=['eduardo','abreu','lima','sobrinho'];
+function _temValor(valores,alvo,pct,abs){return (valores||[]).some(v=>Math.abs(v-alvo)<=Math.max(abs||0,alvo*(pct||0)));}
+function casarPagamento(lido){ // comprovante de pagamento traz os dados do boleto (valor c/ INCC + vencimento)
+  if(!lido)return null;const {datas,valores}=lido;
+  for(const it of state.itens){if(it.tipo==='aporte')continue;if(datas.includes(it.vencimento)&&_temValor(valores,it.valor_base,0.2,5))return it;}
+  for(const it of state.itens){if(it.tipo==='aporte')continue;if(datas.includes(it.vencimento))return it;}
+  for(const it of state.itens){if(it.tipo==='aporte')continue;if(_temValor(valores,it.valor_base,0.2,5))return it;}
+  return null;
+}
+function casarPix(lido){ // o Pix p/ Dudu é a METADE do boleto
+  if(!lido)return null;const {valores}=lido;
+  for(const it of state.itens){if(it.tipo==='aporte')continue;if(_temValor(valores,it.valor_base/2,0.05,5))return it;}
+  return null;
+}
+function validarDoc(cat,lido,parcela){
+  if(!lido||!parcela)return null;const {valores,texto}=lido;const notas=[];let alerta=false;
+  if(cat==='pix_socios'){
+    const benefOk=!!texto&&texto.includes('eduardo')&&BENEF_PIX.some(t=>t!=='eduardo'&&texto.includes(t));
+    const valOk=_temValor(valores,parcela.valor_base/2,0.08,10);
+    notas.push(benefOk?'beneficiário ✓':'beneficiário ?');if(!benefOk)alerta=true;
+    notas.push(valOk?'valor ✓':'valor ?');if(!valOk)alerta=true;
+  }else if(cat==='comprovante_pago'){
+    const valOk=_temValor(valores,parcela.valor_base,0.2,5);
+    notas.push(valOk?'valor ✓':'valor ?');if(!valOk)alerta=true;
+  }
+  return {alerta,nota:notas.join(' · ')};
 }
 function casarParcela(lido){
   if(!lido)return null;
