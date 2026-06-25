@@ -56,7 +56,11 @@ header h1 .num{color:var(--gold)}
 .kpi.accent{background:linear-gradient(160deg,#fff,var(--gold-soft));border-color:var(--gold-soft)}
 .kpi.accent .k-val{color:var(--gold)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.grid>.panel{min-width:0}
+.grid>*{min-width:0}
+.mtbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.mtbl th,.mtbl td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.mtbl th{color:var(--muted);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.03em}
+.mtbl td:first-child{color:var(--ink)}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px}
 .panel h3{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-bottom:2px}
 .panel .desc{font-size:12px;color:var(--muted);margin-bottom:14px}
@@ -294,6 +298,7 @@ footer b{color:var(--ink)}
       <div class="sl"><label>Custos de venda — cartório/jurídico (R$)</label><input type="number" id="custoVenda" step="500" value="0"></div>
       <div class="sl"><label>IR sobre ganho de capital</label><select id="irganho"><option value="15">15% (padrão)</option><option value="isento">Isento</option></select></div>
       <div class="sl"><label>IPCA a.a. — p/ retorno real (%)</label><input type="number" id="ipca" step="0.1" value="4.5"></div>
+      <div class="sl"><label>IFIX esperado (% a.a.) — benchmark FIIs</label><input type="number" id="ifix" step="0.5" value="11"></div>
     </div>
     <div class="obsline" id="cdiFonte" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
   </div>
@@ -366,6 +371,34 @@ footer b{color:var(--ink)}
       <div class="b"><div class="l">TIR de manter</div><div class="v" id="alTir">—</div></div>
     </div>
     <p class="desc" id="alVeredito" style="margin-top:10px;font-size:13px"></p>
+  </div>
+
+  <div class="panel vpl-panel">
+    <h3>Decisão: o que fazer com esse capital? <span class="badge" id="decData"></span></h3>
+    <p class="desc">A TIR de cada estratégia na mesma régua (líquida de custos e impostos). Renda fixa e IFIX são o custo de oportunidade — o que o dinheiro renderia fora do imóvel.</p>
+    <div class="sim-out">
+      <div class="b"><div class="l">Vender na entrega</div><div class="v" id="decVender">—</div></div>
+      <div class="b"><div class="l">Manter e alugar</div><div class="v" id="decManter">—</div></div>
+      <div class="b"><div class="l">Renda fixa (CDI líq.)</div><div class="v" id="decRF">—</div></div>
+      <div class="b"><div class="l">IFIX (FIIs)</div><div class="v" id="decIfix">—</div></div>
+      <div class="b"><div class="l">Poupança</div><div class="v" id="decPoup">—</div></div>
+    </div>
+    <p class="desc" id="decVeredito" style="margin-top:10px;font-size:13px"></p>
+  </div>
+
+  <div class="panel">
+    <h3>Sensibilidade <span class="badge">cenários</span></h3>
+    <p class="desc">Como a decisão muda com o preço de venda (±15%) e com atraso na entrega — TIR de cada caso.</p>
+    <div class="grid">
+      <div>
+        <p class="desc" style="font-weight:600;color:var(--ink);margin-bottom:2px">Cenário de preço de venda</p>
+        <table class="mtbl"><tbody id="sensPreco"></tbody></table>
+      </div>
+      <div>
+        <p class="desc" style="font-weight:600;color:var(--ink);margin-bottom:2px">Custo do atraso na entrega</p>
+        <table class="mtbl"><tbody id="sensAtraso"></tbody></table>
+      </div>
+    </div>
   </div>
 
   <footer>
@@ -447,7 +480,7 @@ async function bootstrap(){
   sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
   await loadFromDB();
   ['incc','cdi','pctcdi'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
-  ['trib','aval','entregaData','corret','custoVenda','irganho','ipca'].forEach(id=>$(id).addEventListener('change',render));
+  ['trib','aval','entregaData','corret','custoVenda','irganho','ipca','ifix'].forEach(id=>$(id).addEventListener('change',render));
   ['alug','reajAlug','vac','opex','custoFixo','irAlug','horizonte','valoriz'].forEach(id=>$(id).addEventListener('change',render));
   $('entrega').addEventListener('change',()=>{const cu=$('entrega').value==='custom';$('entregaData').disabled=!cu;if(cu&&!$('entregaData').value)$('entregaData').value='2031-12-01';render();});
   $('useObs').addEventListener('change',render);
@@ -856,7 +889,7 @@ function render(){
   $('kFalta').textContent=BRL(c.falta);$('kFaltaSub').textContent=(c.parc.length-npagas)+' parcelas a pagar';
   $('kIncc').textContent=BRL(c.inccPago);
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);
+  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);
 }
 
 function renderAlert(){
@@ -930,8 +963,8 @@ function irr(flows){let lo=-0.9,hi=2,fl=npv(lo,flows),fh=npv(hi,flows);
   for(let i=0;i<200;i++){const mid=(lo+hi)/2,fm=npv(mid,flows);
     if(Math.abs(fm)<1)return mid; if(fl*fm<0){hi=mid;}else{lo=mid;fl=fm;}}
   return (lo+hi)/2;}
-function analisar(c){
-  const s=c.s, ENT=getEntrega(), anosE=Math.max(0.01,yearsBetween(T0,ENT));
+function analisar(c,vendaOverride,entregaOverride){
+  const s=c.s, ENT=entregaOverride||getEntrega(), anosE=Math.max(0.01,yearsBetween(T0,ENT));
   const taxa=s.cdi*s.pctcdi, isento=s.trib!=='trib';
   const aplica=(val,d)=>{const a=Math.max(0,yearsBetween(d,ENT));const vf=val*Math.pow(1+taxa,a);if(isento)return vf;const g=vf-val;return val+g*(1-aliqIR(a));};
   let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0;const flows=[];
@@ -944,7 +977,7 @@ function analisar(c){
   totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,T0);flows.push({t:0,cf:-(ENTRADA+AMB)});
   const valorHoje=M2BASE*AREA;
   // --- cenário de saída (revenda) ---
-  const venda=parseFloat($('aval').value)||0;
+  const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
   const corret=(parseFloat($('corret').value)||0)/100;
   const custoVenda=parseFloat($('custoVenda').value)||0;
   const isentoG=$('irganho').value==='isento';
@@ -1044,6 +1077,51 @@ function renderRenda(c){
     txt+=' <span style="color:var(--muted)">Preencha o valor de venda esperado para comparar vender × manter lado a lado.</span>';
   }
   $('alVeredito').innerHTML='<b>Leitura:</b> '+txt;
+}
+
+function renderDecisao(c){
+  const a=analisar(c), r=analisarRenda(a);
+  const tirRF=irr(a.flows.concat([{t:a.anosE,cf:a.vfRF}]));
+  const ifix=(parseFloat($('ifix').value)||0)/100;
+  const selic=c.s.cdi, poup=selic>0.085?0.0617:0.7*selic;
+  const fmt=v=>v!=null?PCT(v*100,1)+' a.a.':'—';
+  const vender=a.venda?a.tir:null, manter=r.ok?r.tir:null;
+  $('decVender').textContent=fmt(vender);
+  $('decManter').textContent=fmt(manter);
+  $('decRF').textContent=fmt(tirRF);
+  $('decIfix').textContent=fmt(ifix);
+  $('decPoup').textContent=fmt(poup);
+  const cands=[['Vender na entrega',vender,'decVender'],['Manter e alugar',manter,'decManter'],['Renda fixa',tirRF,'decRF'],['IFIX',ifix,'decIfix'],['Poupança',poup,'decPoup']];
+  cands.forEach(x=>$(x[2]).className='v');
+  const validos=cands.filter(x=>x[1]!=null);
+  if(validos.length){const best=validos.reduce((m,x)=>x[1]>m[1]?x:m);$(best[2]).className='v pos';}
+  $('decData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+  if(vender!=null&&manter!=null){
+    const acion=vender>=manter?['vender na entrega',vender]:['manter e alugar',manter];
+    const opp=Math.max(tirRF||0,ifix||0);
+    const venceOpp=acion[1]>=opp;
+    $('decVeredito').innerHTML='<b>Leitura:</b> Entre as estratégias do imóvel, a melhor é <b>'+acion[0]+'</b> ('+fmt(acion[1])+'). '+(venceOpp?'Ela <b>supera</b>':'Ela <b>NÃO supera</b>')+' o melhor custo de oportunidade ('+fmt(opp)+', entre renda fixa e IFIX). '+(venceOpp?'O imóvel se justifica neste cenário.':'Aqui o capital renderia mais fora do imóvel.')+' <span style="color:var(--muted)">Tudo nominal; desconte ~'+PCT((parseFloat($('ipca').value)||0),1)+' de IPCA para o real.</span>';
+  } else {
+    $('decVeredito').innerHTML='<b>Leitura:</b> Preencha o <b>valor de venda esperado</b> e o <b>aluguel</b> para comparar as estratégias do imóvel com renda fixa, IFIX e poupança.';
+  }
+}
+
+function renderSens(c){
+  const base=parseFloat($('aval').value)||0;
+  const fmt=v=>v!=null?PCT(v*100,1):'—';
+  if(!base){$('sensPreco').innerHTML='<tr><td>Preencha o valor de venda esperado.</td></tr>';$('sensAtraso').innerHTML='';return;}
+  const rows1=[['Pessimista (−15%)',0.85],['Base',1],['Otimista (+15%)',1.15]].map(([nome,m])=>{
+    const p=base*m, av=analisar(c,p), ar=analisarRenda(av);
+    const melhor=(av.tir!=null&&ar.tir!=null)?(av.tir>=ar.tir?'Vender':'Manter'):'—';
+    return '<tr><td>'+nome+'</td><td>'+BRL(p)+'</td><td>'+fmt(av.tir)+'</td><td>'+fmt(ar.tir)+'</td><td><b>'+melhor+'</b></td></tr>';
+  }).join('');
+  $('sensPreco').innerHTML='<tr><th>Cenário</th><th>Preço venda</th><th>TIR vender</th><th>TIR manter</th><th>Melhor</th></tr>'+rows1;
+  const datas=[['No prazo',new Date('2031-07-01T00:00:00')],['+180 dias',new Date('2032-01-01T00:00:00')],['+1 ano',new Date('2032-07-01T00:00:00')]];
+  const rows2=datas.map(([nome,d])=>{
+    const av=analisar(c,null,d);
+    return '<tr><td>'+nome+'</td><td>'+d.toLocaleDateString('pt-BR',{month:'short',year:'numeric'})+'</td><td>'+fmt(av.tir)+'</td></tr>';
+  }).join('');
+  $('sensAtraso').innerHTML='<tr><th>Entrega</th><th>Data</th><th>TIR vender</th></tr>'+rows2;
 }
 
 bootstrap();
