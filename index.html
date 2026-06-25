@@ -203,11 +203,14 @@ footer b{color:var(--ink)}
 <div class="wrap">
   <div class="alert" id="alert"></div>
 
+  <p class="desc" style="margin:2px 0 -4px;color:var(--muted)">Os quatro primeiros são <b>valores reais / de contrato</b>. O card em <b>dourado</b> é a <b>projeção</b> — estimativa do custo total até a entrega, corrigida pelo INCC que você vem pagando.</p>
   <div class="kpis">
-    <div class="kpi accent"><div class="k-label">All-in atual (real + projeção)</div><div class="k-val" id="kAllin">—</div><div class="k-sub" id="kAllinSub"></div></div>
-    <div class="kpi"><div class="k-label">Já pago (real)</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub"></div></div>
-    <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub"></div></div>
-    <div class="kpi"><div class="k-label">INCC pago acumulado</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção real embutida</div></div>
+    <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><div class="k-sub">soma das 65 parcelas, sem INCC</div></div>
+    <div class="kpi"><div class="k-label">Já pago</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub">o que você já desembolsou</div></div>
+    <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes, a valor de contrato</div></div>
+    <div class="kpi"><div class="k-label">INCC pago acumulado</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção já embutida no que pagou</div></div>
+    <div class="kpi accent"><div class="k-label">Custo total projetado (com INCC)</div><div class="k-val" id="kAllin">—</div><div class="k-sub" id="kAllinSub"></div></div>
+    <div class="kpi"><div class="k-label">Preço do m² — contrato</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
 
   <div class="panel">
@@ -224,49 +227,42 @@ footer b{color:var(--ink)}
     </div>
   </div>
 
-  <div class="panel" id="uploadCard">
-    <h3>📎 Anexar documento</h3>
-    <p class="desc">Arraste boletos, comprovantes ou documentos do negócio. Boleto em PDF tem a parcela identificada sozinho; nos demais, o sistema pergunta a que parcela pertence. Cofre privado — só você e o Dudu têm acesso.</p>
+  <div class="panel" id="pagCard">
+    <h3>💰 Documentos de pagamento</h3>
+    <p class="desc">Boleto, comprovante do seu Pix p/ Dudu e comprovante de pagamento. Ficam vinculados à parcela e aparecem na coluna <b>Docs</b> da tabela acima.</p>
 
-    <div class="lockmsg" id="uploadLocked" style="display:none">🔒 Entre para editar (botão no topo) para anexar documentos.</div>
+    <div class="lockmsg" id="pagLocked" style="display:none">🔒 Entre para editar (botão no topo) para anexar.</div>
 
-    <div id="uploadArea" style="display:none">
+    <div id="pagArea" style="display:none">
       <div class="docctrl">
-        <div class="f"><label>Tipo do que vou anexar</label>
-          <select id="docCat">
-            <option value="boleto">Boleto (da parcela)</option>
+        <div class="f"><label>Tipo</label>
+          <select id="catPag">
+            <option value="boleto">Boleto</option>
             <option value="pix_socios">Comprovante — meu Pix p/ Dudu</option>
             <option value="comprovante_pago">Comprovante — boleto pago</option>
-            <option value="contrato">Contrato (negócio)</option>
-            <option value="memorial">Memorial (negócio)</option>
-            <option value="matricula">Matrícula (negócio)</option>
-            <option value="analise">Análise (negócio)</option>
-            <option value="outro">Outro</option>
           </select>
         </div>
       </div>
-
-      <div id="dropzone" class="dropzone" role="button" tabindex="0">
-        <input id="docFile" type="file" multiple accept="image/*,application/pdf,.pdf" hidden>
-        <div class="dz-icon">📎</div>
-        <div class="dz-title">Arraste aqui ou <span class="dz-link">toque para escolher</span></div>
-        <div class="dz-sub">PDF ou foto · pode soltar vários · no celular abre câmera, galeria ou arquivos</div>
+      <div id="dzPag" class="dropzone" role="button" tabindex="0">
+        <input id="filePag" type="file" multiple accept="image/*,application/pdf,.pdf" hidden>
+        <div class="dz-icon">💰</div>
+        <div class="dz-title">Arraste ou <span class="dz-link">toque para escolher</span></div>
+        <div class="dz-sub">Boleto em PDF vincula sozinho; nos demais o sistema pergunta a parcela</div>
       </div>
-      <div id="upStatus" class="upstatus" style="display:none"></div>
+      <div id="upPag" class="upstatus" style="display:none"></div>
     </div>
   </div>
 
   <div class="panel" id="docsCard">
     <h3>🗂️ Documentos do negócio <span class="badge" id="docsCount">—</span></h3>
-    <p class="desc">Contrato, memorial, matrícula e análises — os que não pertencem a uma parcela. Boleto, Pix e comprovante de pagamento ficam na coluna <b>Docs</b> da tabela acima.</p>
+    <p class="desc">Contrato, memorial, matrícula e análises — anexe e veja aqui mesmo.</p>
 
-    <div class="lockmsg" id="docsLocked" style="display:none">🔒 Entre para editar (botão no topo) para ver os documentos.</div>
+    <div class="lockmsg" id="docsLocked" style="display:none">🔒 Entre para editar (botão no topo) para ver e anexar.</div>
 
     <div id="docsArea" style="display:none">
-      <div class="docctrl docfilter">
-        <div class="f"><label>Filtrar tipo</label>
-          <select id="fCat">
-            <option value="">todos</option>
+      <div class="docctrl">
+        <div class="f"><label>Tipo</label>
+          <select id="catNeg">
             <option value="contrato">Contrato</option>
             <option value="memorial">Memorial</option>
             <option value="matricula">Matrícula</option>
@@ -275,8 +271,14 @@ footer b{color:var(--ink)}
           </select>
         </div>
       </div>
-
-      <div id="docsBody" class="doclist"></div>
+      <div id="dzNeg" class="dropzone" role="button" tabindex="0">
+        <input id="fileNeg" type="file" multiple accept="image/*,application/pdf,.pdf" hidden>
+        <div class="dz-icon">🗂️</div>
+        <div class="dz-title">Arraste ou <span class="dz-link">toque para escolher</span></div>
+        <div class="dz-sub">Contrato, memorial, matrícula, análise…</div>
+      </div>
+      <div id="upNeg" class="upstatus" style="display:none"></div>
+      <div id="docsBody" class="doclist" style="margin-top:10px"></div>
     </div>
   </div>
 
@@ -496,8 +498,8 @@ async function bootstrap(){
   $('dgClose').onclick=closeDocMgmt;
   $('docMgmt').addEventListener('click',e=>{if(e.target.id==='docMgmt')closeDocMgmt();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLogin();resolveDocModal('__skip__');closeDocMgmt();}});
-  $('fCat').onchange=renderDocs;
-  setupDropzone();
+  setupDropzone('dzPag','filePag','catPag','upPag');
+  setupDropzone('dzNeg','fileNeg','catNeg','upNeg');
   fillParcelaSelects();
   await loadDocs();
   try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (Selic meta): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
@@ -590,17 +592,12 @@ async function loadDocs(){
 }
 
 function renderDocs(){
-  const locked=$('docsLocked'),area=$('docsArea'),cnt=$('docsCount');
-  const upLocked=$('uploadLocked'),upArea=$('uploadArea');
-  if(!canEdit){locked.style.display='';area.style.display='none';cnt.textContent='🔒';
-    upLocked.style.display='';upArea.style.display='none';return;}
-  upLocked.style.display='none';upArea.style.display='';
-  locked.style.display='none';area.style.display='';
-  const fc=$('fCat').value;
+  const pagLk=$('pagLocked'),pagAr=$('pagArea'),locked=$('docsLocked'),area=$('docsArea'),cnt=$('docsCount');
+  if(!canEdit){pagLk.style.display='';pagAr.style.display='none';locked.style.display='';area.style.display='none';cnt.textContent='🔒';return;}
+  pagLk.style.display='none';pagAr.style.display='';locked.style.display='none';area.style.display='';
   let list=docs.filter(d=>!CAT_PARCELA.includes(d.categoria));
-  if(fc)list=list.filter(d=>d.categoria===fc);
   cnt.textContent=list.length+' arquivo'+(list.length===1?'':'s');
-  if(!list.length){$('docsBody').innerHTML='<div class="docempty">nenhum documento do negócio'+(fc?' com esse filtro':' ainda — arraste contrato, memorial ou matrícula acima')+'</div>';return;}
+  if(!list.length){$('docsBody').innerHTML='<div class="docempty">nenhum documento do negócio ainda — anexe acima</div>';return;}
   $('docsBody').innerHTML=list.map(d=>{
     const dt=d.created_at?new Date(d.created_at).toLocaleDateString('pt-BR'):'';
     const quem=esc((d.enviado_por||'').split('@')[0]);
@@ -621,16 +618,16 @@ function renderDocs(){
   $('docsBody').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteDoc(+b.dataset.del,decodeURIComponent(b.dataset.path)));
 }
 
-function upMsg(t,show=true){const e=$('upStatus');e.style.display=show?'':'none';e.classList.remove('pix');e.textContent=t;}
+function upMsg(el,t,show=true){if(!el)return;el.style.display=show?'':'none';el.classList.remove('pix');el.textContent=t;}
 
-function setupDropzone(){
-  const dz=$('dropzone'),inp=$('docFile');
+function setupDropzone(dzId,inpId,catId,statusId){
+  const dz=$(dzId),inp=$(inpId);
   dz.onclick=()=>inp.click();
   dz.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();inp.click();}};
-  inp.onchange=()=>{if(inp.files.length)uploadFiles(inp.files);};
+  inp.onchange=()=>{if(inp.files.length)uploadFiles(inp.files,catId,statusId,inpId);};
   ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
   ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
-  dz.addEventListener('drop',e=>{const f=e.dataTransfer.files;if(f&&f.length)uploadFiles(f);});
+  dz.addEventListener('drop',e=>{const f=e.dataTransfer.files;if(f&&f.length)uploadFiles(f,catId,statusId,inpId);});
 }
 
 let _docResolve=null;
@@ -648,18 +645,19 @@ function resolveDocModal(val){
   if(_docResolve){const r=_docResolve;_docResolve=null;r(val);}
 }
 
-async function uploadFiles(fileList){
+async function uploadFiles(fileList,catId,statusId,inpId){
   if(!canEdit){alert('Entre para editar.');return;}
+  const st=$(statusId);
   const files=Array.from(fileList);
-  const cat=$('docCat').value, isParcelaCat=CAT_PARCELA.includes(cat);
+  const cat=$(catId).value, isParcelaCat=CAT_PARCELA.includes(cat);
   let ok=0,fail=0,ultimoVinc='',pixInfo=null;
   for(let i=0;i<files.length;i++){
     const file=files[i];
-    if(file.size>25*1024*1024){fail++;upMsg('⚠️ '+file.name+' passou de 25 MB — pulado');continue;}
+    if(file.size>25*1024*1024){fail++;upMsg(st,'⚠️ '+file.name+' passou de 25 MB — pulado');continue;}
     let parcela=null, vinc='';
     if(isParcelaCat){
       if(cat==='boleto' && /pdf/i.test((file.type||'')+file.name)){
-        upMsg('📄 Lendo '+file.name+'…');
+        upMsg(st,'📄 Lendo '+file.name+'…');
         const lido=await lerBoleto(file);
         const m=casarParcela(lido);
         if(m){parcela=String(m.id);vinc=m.ref;
@@ -669,39 +667,39 @@ async function uploadFiles(fileList){
       }
       if(!parcela){
         const escolha=await askParcela(file.name);
-        if(escolha==='__skip__'){upMsg('↪️ '+file.name+' pulado');continue;}
+        if(escolha==='__skip__'){upMsg(st,'↪️ '+file.name+' pulado');continue;}
         parcela=escolha||null;
         const it=state.itens.find(x=>String(x.id)===String(parcela));
         if(it)vinc=it.ref;
       }
     }
-    upMsg('Enviando '+(i+1)+'/'+files.length+': '+file.name+(vinc?' → '+vinc:'')+'…');
+    upMsg(st,'Enviando '+(i+1)+'/'+files.length+': '+file.name+(vinc?' → '+vinc:'')+'…');
     const safe=file.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]/g,'_');
     const path=(parcela?parcela:'negocio')+'/'+Date.now()+'_'+i+'_'+safe;
     const up=await sb.storage.from(BUCKET).upload(path,file,{upsert:false,contentType:file.type||undefined});
-    if(up.error){fail++;upMsg('Erro em '+file.name+': '+up.error.message);continue;}
+    if(up.error){fail++;upMsg(st,'Erro em '+file.name+': '+up.error.message);continue;}
     const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail});
-    if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg('Erro ao indexar '+file.name);continue;}
+    if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg(st,'Erro ao indexar '+file.name);continue;}
     ok++; if(vinc)ultimoVinc=vinc;
   }
-  $('docFile').value='';
+  if($(inpId))$(inpId).value='';
   await loadDocs();renderDocs();render();
-  if(ok===1&&pixInfo){upMsgPix(pixInfo);return;}
+  if(ok===1&&pixInfo){upMsgPix(st,pixInfo);return;}
   let msg=ok?'✓ '+ok+' anexado'+(ok>1?'s':''):'';
   if(ok===1&&ultimoVinc)msg='✓ anexado e vinculado a '+ultimoVinc;
-  upMsg(msg+(fail?' · '+fail+' falhou':'')+'.');
-  setTimeout(()=>upMsg('',false),5000);
+  upMsg(st,msg+(fail?' · '+fail+' falhou':'')+'.');
+  setTimeout(()=>upMsg(st,'',false),5000);
 }
 
-function upMsgPix(p){
-  const e=$('upStatus');e.style.display='';e.classList.add('pix');
+function upMsgPix(e,p){
+  e.style.display='';e.classList.add('pix');
   const f=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   e.innerHTML=`✓ Boleto de <b>${esc(p.ref)}</b> anexado (total R$ ${f(p.total)}).`
     +`<div class="pixrow">💸 Seu Pix p/ Dudu: <b>R$ ${f(p.metade)}</b>`
     +`<button class="docbtn" id="cpPix">copiar valor</button>`
     +`<button class="docbtn" id="okPix">ok</button></div>`;
   const b=$('cpPix');if(b)b.onclick=()=>{const txt=p.metade.toFixed(2).replace('.',',');(navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>{b.textContent='copiado ✓';}).catch(()=>{prompt('Valor do Pix:',txt);});};
-  const o=$('okPix');if(o)o.onclick=()=>{e.classList.remove('pix');upMsg('',false);};
+  const o=$('okPix');if(o)o.onclick=()=>{e.classList.remove('pix');upMsg(e,'',false);};
 }
 
 async function openDoc(path){
@@ -722,13 +720,14 @@ async function shareDoc(path,titulo){
 async function deleteDoc(id,path){
   if(!canEdit)return;
   if(!confirm('Excluir este documento? Não dá para desfazer.'))return;
-  upMsg('Excluindo…');
+  const st=$('upNeg');
+  upMsg(st,'Excluindo…');
   await sb.storage.from(BUCKET).remove([path]);
   const {error}=await sb.from('ocean504_docs').delete().eq('id',id);
-  if(error){upMsg('Erro: '+error.message);return;}
+  if(error){upMsg(st,'Erro: '+error.message);return;}
   await loadDocs();renderDocs();render();
   if($('docMgmt').classList.contains('show'))renderDocMgmt();
-  upMsg('Documento excluído ✓');setTimeout(()=>upMsg('',false),3000);
+  upMsg(st,'Documento excluído ✓');setTimeout(()=>upMsg(st,'',false),3000);
 }
 
 let _pdfjs=null;
@@ -786,7 +785,9 @@ function inccObs(){
   state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago!=null).forEach(r=>{
     const incc=num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa);
     somaIncc+=incc;const n=nOf(r.vencimento);
-    if(n>=1&&r.valor_base>0&&incc>-r.valor_base){taxas.push(Math.pow(1+incc/r.valor_base,1/n)-1);}
+    // só usa a parcela na taxa de projeção se a taxa implícita for plausível
+    // (protege contra lançamentos absurdos, ex.: pagar R$ 0,01 -> INCC de -26%/mês)
+    if(n>=1&&r.valor_base>0){const tx=Math.pow(1+incc/r.valor_base,1/n)-1;if(isFinite(tx)&&tx>-0.02&&tx<0.05)taxas.push(tx);}
   });
   const tm=taxas.length?taxas.reduce((a,b)=>a+b,0)/taxas.length:null;
   return {mensal:tm,anual:tm!=null?Math.pow(1+tm,12)-1:null,nObs:taxas.length,somaIncc};
@@ -797,14 +798,16 @@ function taxaProjMensal(){const s=sv(),o=inccObs();
 
 function compute(){
   const s=sv(),imP=taxaProjMensal();
-  let pagoReg=0,projRest=0,projPagas=0,aportes=0;
+  let pagoReg=0,projRest=0,projPagas=0,aportes=0,baseTotal=0,baseRest=0,npagas=0;
   const parc=state.itens.filter(r=>r.tipo!=='aporte');
   parc.forEach(r=>{const n=nOf(r.vencimento);const proj=r.valor_base*Math.pow(1+imP,n);
-    if(r.valor_pago!=null){pagoReg+=num(r.valor_pago);projPagas+=proj;}else projRest+=proj;});
+    baseTotal+=num(r.valor_base);
+    if(r.valor_pago!=null){pagoReg+=num(r.valor_pago);projPagas+=proj;npagas++;}else{projRest+=proj;baseRest+=num(r.valor_base);}});
   state.itens.filter(r=>r.tipo==='aporte').forEach(r=>aportes+=num(r.valor_pago));
   const allin=pagoReg+projRest+aportes+ENTRADA+AMB;const o=inccObs();
   return {s,imP,parc,pagoReg,projRest,aportes,allin,jaPago:pagoReg+aportes,
-    falta:allin-(pagoReg+aportes),custoM2:allin/AREA,inccPago:o.somaIncc,obs:o};
+    falta:allin-(pagoReg+aportes),custoM2:allin/AREA,inccPago:o.somaIncc,obs:o,
+    baseTotal,baseRest,npagas,nrest:parc.length-npagas};
 }
 
 const gridc='#ECF1F1';
@@ -883,11 +886,13 @@ function render(){
   if(c.obs.anual!=null){$('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> (média de '+c.obs.nObs+' parcela'+(c.obs.nObs>1?'s':'')+' paga'+(c.obs.nObs>1?'s':'')+')'+($('useObs').checked?' — em uso na projeção':' — slider em uso');}
   else $('obsLine').innerHTML='INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)';
   $('slIncc').classList.toggle('muted',$('useObs').checked&&c.obs.mensal!=null);
-  $('kAllin').textContent=BRL(c.allin);$('kAllinSub').textContent='sua parte: '+BRL(c.allin*PV);
-  $('kPago').textContent=BRL(c.jaPago);$('kPagoSub').textContent=PCT(c.allin?c.jaPago/c.allin*100:0,0)+' do all-in';
-  const npagas=c.parc.filter(r=>r.valor_pago!=null).length;
-  $('kFalta').textContent=BRL(c.falta);$('kFaltaSub').textContent=(c.parc.length-npagas)+' parcelas a pagar';
+  const npagas=c.npagas;
+  $('kContrato').textContent=BRL(c.baseTotal);
+  $('kPago').textContent=BRL(c.jaPago);$('kPagoSub').textContent=PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,0)+' do contrato · '+npagas+' parcela'+(npagas===1?'':'s')+' paga'+(npagas===1?'':'s')+(c.aportes>0?' + aportes':'');
+  $('kFalta').textContent=BRL(c.baseRest);$('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s')+', a valor de contrato';
   $('kIncc').textContent=BRL(c.inccPago);
+  $('kAllin').textContent=BRL(c.allin);$('kAllinSub').textContent='com INCC + ITBI/registro/ambientação até a entrega · sua parte (50%): '+BRL(c.allin*PV);
+  $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='real/projetado (com tudo): '+BRL(c.allin/AREA)+'/m²';
   $('cntPagas').textContent=npagas+' pagas';
   renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);
 }
