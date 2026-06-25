@@ -238,8 +238,8 @@ footer b{color:var(--ink)}
         <div class="f"><label>Tipo</label>
           <select id="catPag">
             <option value="boleto">Boleto</option>
-            <option value="pix_socios">Comprovante — meu Pix p/ Dudu</option>
-            <option value="comprovante_pago">Comprovante — boleto pago</option>
+            <option value="pix_socios">Pix Paim para Duduzinho</option>
+            <option value="comprovante_pago">Pagamento do Boleto</option>
           </select>
         </div>
       </div>
@@ -466,7 +466,7 @@ function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).pad
 
 let state={itens:[]},charts={},canEdit=false,docs=[],currentEmail=null;
 const BUCKET='ocean504-anexos';
-const CAT_LABEL={boleto:'Boleto',pix_socios:'Meu Pix',comprovante_pago:'Boleto pago',comprovante:'Comprovante',contrato:'Contrato',memorial:'Memorial',matricula:'Matrícula',analise:'Análise',outro:'Outro'};
+const CAT_LABEL={boleto:'Boleto',pix_socios:'Pix Paim para Duduzinho',comprovante_pago:'Pagamento do Boleto',comprovante:'Comprovante',contrato:'Contrato',memorial:'Memorial',matricula:'Matrícula',analise:'Análise',outro:'Outro'};
 const CAT_ICON={boleto:'📄',pix_socios:'💸',comprovante_pago:'✅',comprovante:'🧾',contrato:'📜',memorial:'📐',matricula:'🏷️',analise:'📊',outro:'📎'};
 const CAT_PARCELA=['boleto','pix_socios','comprovante_pago','comprovante']; // docs que pertencem a uma parcela (acessados na tabela); o resto é do negócio
 const SB_URL='https://aipgtnvflezqnhzbpxam.supabase.co';
