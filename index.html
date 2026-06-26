@@ -616,6 +616,7 @@ async function onAuthClick(){
 function openLogin(){
   const sel=$('lgEmail');
   if(sel&&!sel.options.length)sel.innerHTML=EDITORES.map(e=>`<option value="${e}">${e}</option>`).join('');
+  try{const le=localStorage.getItem('ocean504_lastEmail');if(le&&EDITORES.includes(le))sel.value=le;}catch(e){}
   $('lgErr').textContent='';$('lgPass').value='';
   const m=$('loginModal');m.classList.add('show');m.setAttribute('aria-hidden','false');
   setTimeout(()=>$('lgPass').focus(),50);
@@ -628,6 +629,7 @@ async function doLogin(){
   const {error}=await sb.auth.signInWithPassword({email,password});
   $('lgGo').disabled=false;
   if(error){$('lgErr').textContent='Falha no login: '+error.message;setSave('');return;}
+  try{localStorage.setItem('ocean504_lastEmail',email);}catch(e){}
   closeLogin();await loadFromDB();setSave('Conectado ✓');render();
 }
 
