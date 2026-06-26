@@ -224,7 +224,9 @@ footer b{color:var(--ink)}
 /* modal de login */
 .modal-bg{position:fixed;inset:0;background:rgba(10,42,51,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
 .modal-bg.show{display:flex}
-.modal{background:#fff;border-radius:16px;padding:22px 22px 20px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal{background:#fff;border-radius:16px;padding:22px 22px 20px;width:100%;max-width:360px;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.mtbl{width:100%}
+.sens-col{overflow-x:auto}
 .modal h3{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-bottom:4px}
 .modal .modal-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
 .modal .modal-l{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
@@ -457,11 +459,11 @@ footer b{color:var(--ink)}
     <h3>Sensibilidade <span class="badge">cenários</span></h3>
     <p class="desc">Como a decisão muda com o preço de venda (±15%) e com atraso na entrega — TIR de cada caso.</p>
     <div class="grid">
-      <div>
+      <div class="sens-col">
         <p class="desc" style="font-weight:600;color:var(--ink);margin-bottom:2px">Cenário de preço de venda</p>
         <table class="mtbl"><tbody id="sensPreco"></tbody></table>
       </div>
-      <div>
+      <div class="sens-col">
         <p class="desc" style="font-weight:600;color:var(--ink);margin-bottom:2px">Custo do atraso na entrega</p>
         <table class="mtbl"><tbody id="sensAtraso"></tbody></table>
       </div>
