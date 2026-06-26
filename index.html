@@ -645,6 +645,7 @@ function updateAuthUI(){
   if(canEdit){st.innerHTML='✏️ <b>Modo edição</b> — suas alterações salvam sozinhas';btn.textContent='Sair';}
   else{st.innerHTML='🔒 <b>Somente leitura</b>';btn.textContent='Entrar para editar';}
   document.querySelectorAll('.addbar input, #apBtn').forEach(el=>el.disabled=!canEdit);
+  if(canEdit)ensurePdfjs().catch(()=>{}); // pré-aquece o leitor de PDF p/ o 1º upload validar na hora
 }
 
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -848,7 +849,7 @@ function lerBoleto(file){
     const valores=[...txt.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
     return {datas,valores,texto:txt.toLowerCase()};
   })().catch(e=>{console.warn('leitura PDF falhou',e);return null;});
-  return Promise.race([work,new Promise(r=>setTimeout(()=>r(null),9000))]);
+  return Promise.race([work,new Promise(r=>setTimeout(()=>r(null),12000))]);
 }
 const BENEF_PIX=['eduardo','abreu','lima','sobrinho'];
 function _temValor(valores,alvo,pct,abs){return (valores||[]).some(v=>Math.abs(v-alvo)<=Math.max(abs||0,alvo*(pct||0)));}
