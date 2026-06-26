@@ -16,7 +16,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);
   font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;line-height:1.45}
-.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.wrap{max-width:1400px;margin:0 auto;padding:0 20px}
 .tabs{display:flex;gap:6px;margin:16px 0 4px;border-bottom:2px solid var(--line)}
 .tab{appearance:none;background:none;border:none;font-family:inherit;font-size:14.5px;font-weight:600;color:var(--muted);padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
 .tab:hover{color:var(--ink)}
@@ -55,10 +55,10 @@ header h1 .num{color:var(--gold)}
 .sl input[type=range]{width:100%;-webkit-appearance:none;height:5px;border-radius:5px;background:var(--mist);outline:none}
 .sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--teal);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .sl select,.sl input[type=date],.sl input[type=number]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;margin-top:6px}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin:18px 0}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 17px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
 .kpi .k-label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
-.kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(20px,2.6vw,27px);margin-top:5px;line-height:1}
+.kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(17px,2vw,22px);margin-top:4px;line-height:1}
 .kpi .k-sub{font-size:11.5px;color:var(--muted);margin-top:4px}
 .kpi.accent{background:linear-gradient(160deg,#fff,var(--gold-soft));border-color:var(--gold-soft)}
 .kpi.accent .k-val{color:var(--gold)}
@@ -101,6 +101,9 @@ table.pg td{padding:6px 9px;border-bottom:1px solid var(--line)}
 table.pg tr.paga{background:var(--green-soft)}
 table.pg tr.aporte{background:var(--gold-soft)}
 table.pg tr.vencida{background:var(--coral-soft)}
+table.pg tr.semestral:not(.paga):not(.vencida){background:var(--gold-soft)}
+table.pg tr.semestral td:first-child{border-left:4px solid var(--gold)}
+table.pg tr.semestral td:first-child b{color:var(--gold)}
 table.pg input{width:92px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:inherit;font-variant-numeric:tabular-nums}
 table.pg input.dt{width:120px}
 .proj{color:var(--muted)}
@@ -158,7 +161,7 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 }
 footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
 footer b{color:var(--ink)}
-@media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}}
+@media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 /* header com login no topo */
 .head-wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:18px 28px;flex-wrap:wrap;position:relative;z-index:1}
@@ -217,10 +220,8 @@ footer b{color:var(--ink)}
   <div class="tabpane active" id="tabAcomp">
   <div class="alert" id="alert"></div>
 
-  <p class="desc" style="margin:2px 0 -4px;color:var(--muted)">Os quatro primeiros são <b>valores reais / de contrato</b>. O card em <b>dourado</b> é a <b>projeção</b> — estimativa do custo total até a entrega, corrigida pelo INCC que você vem pagando.</p>
   <div class="kpis">
-    <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><div class="k-sub">soma das 65 parcelas, sem INCC</div></div>
-    <div class="kpi"><div class="k-label">Já pago</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub">o que você já desembolsou</div></div>
+    <div class="kpi"><div class="k-label">Contrato · já pago</div><div class="k-val" id="kContrato">—</div><div class="k-sub" id="kPagoSub">—</div></div>
     <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes, a valor de contrato</div></div>
     <div class="kpi"><div class="k-label">INCC pago acumulado</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção já embutida no que pagou</div></div>
     <div class="kpi accent"><div class="k-label">Custo total projetado (com INCC)</div><div class="k-val" id="kAllin">—</div><div class="k-sub" id="kAllinSub"></div></div>
@@ -598,7 +599,7 @@ async function doLogin(){
 function updateAuthUI(){
   const st=$('authStatus'),btn=$('authBtn');
   if(canEdit){st.innerHTML='✏️ <b>Modo edição</b> — suas alterações salvam sozinhas';btn.textContent='Sair';}
-  else{st.innerHTML='🔒 <b>Somente leitura</b> — o Dudu e os demais só consultam';btn.textContent='Entrar para editar';}
+  else{st.innerHTML='🔒 <b>Somente leitura</b>';btn.textContent='Entrar para editar';}
   document.querySelectorAll('.addbar input, #apBtn').forEach(el=>el.disabled=!canEdit);
 }
 
@@ -974,7 +975,7 @@ function render(){
   $('slIncc').classList.toggle('muted',$('useObs').checked&&c.obs.mensal!=null);
   const npagas=c.npagas;
   $('kContrato').textContent=BRL(c.baseTotal);
-  $('kPago').textContent=BRL(c.jaPago);$('kPagoSub').textContent=PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,0)+' do contrato · '+npagas+' parcela'+(npagas===1?'':'s')+' paga'+(npagas===1?'':'s')+(c.aportes>0?' + aportes':'');
+  $('kPagoSub').textContent='já pago '+BRL(c.jaPago)+' · '+PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,0)+' · '+npagas+' parc.'+(c.aportes>0?' + aportes':'');
   $('kFalta').textContent=BRL(c.baseRest);$('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s')+', a valor de contrato';
   $('kIncc').textContent=BRL(c.inccPago);
   $('kAllin').textContent=BRL(c.allin);$('kAllinSub').textContent='com INCC + ITBI/registro/ambientação até a entrega · sua parte (50%): '+BRL(c.allin*PV);
@@ -1004,7 +1005,7 @@ function renderTable(c){
     const incc=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa):null;
     const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
     const meio=r.valor_base/2;
-    const tr=document.createElement('tr');tr.className=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));
+    const tr=document.createElement('tr');const _st=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));tr.className=(r.tipo==='semestral'?'semestral ':'')+_st;
     tr.innerHTML=`<td><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
       <td>${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj">${isAp?'—':BRL(r.valor_base,0)}</td>
