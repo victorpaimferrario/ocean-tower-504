@@ -178,6 +178,24 @@ footer b{color:var(--ink)}
   .sl input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
   .sl input[type=range]::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff}
   .docchip{padding:7px 10px;font-size:16px}
+  /* tabela de parcelas vira cartoes (sem scroll horizontal) */
+  .tbl-wrap{max-height:70vh;border:none;border-radius:0}
+  table.pg{min-width:0;width:100%}
+  table.pg thead{display:none}
+  table.pg tbody,table.pg tr,table.pg td{display:block;width:100%}
+  table.pg tr{border:1px solid var(--line);border-radius:12px;margin-bottom:10px;padding:6px 12px;background:#fff}
+  table.pg tr.paga{background:var(--green-soft)}
+  table.pg tr.aporte{background:var(--gold-soft)}
+  table.pg tr.vencida{background:var(--coral-soft)}
+  table.pg tr.semestral:not(.paga):not(.vencida){background:var(--gold-soft)}
+  table.pg td{border-bottom:1px solid var(--line);padding:7px 0;display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:right}
+  table.pg td:last-child{border-bottom:none}
+  table.pg td::before{content:attr(data-label);font-weight:600;color:var(--muted);font-size:13px;text-align:left;flex:0 0 auto}
+  table.pg td.sec{display:none}
+  table.pg td:first-child{display:block;text-align:left;border-bottom:2px solid var(--line);padding:6px 0 8px;font-size:16px}
+  table.pg td:first-child::before{display:none}
+  table.pg input{width:auto;max-width:62%}
+  table.pg input.dt{max-width:75%}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 /* header com login no topo */
@@ -1025,17 +1043,17 @@ function renderTable(c){
     const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
     const meio=r.valor_base/2;
     const tr=document.createElement('tr');const _st=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));tr.className=(r.tipo==='semestral'?'semestral ':'')+_st;
-    tr.innerHTML=`<td><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
-      <td>${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
-      <td class="proj">${isAp?'—':BRL(r.valor_base,0)}</td>
-      <td class="metade">${isAp?'—':BRL(meio,0)}</td>
-      <td><input type="number" step="0.01" value="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
-      <td><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
-      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
-      <td>${isAp?'—':'<input type="number" step="0.01" value="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
-      <td>${dif!=null&&!isAp?'<span class="'+(dif>=0?'incc-ok':'incc-bad')+'">'+BRL(dif,2)+'</span>':'—'}</td>
-      <td>${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>
-      <td>${canEdit?docChips(r.id,by):'<span class="proj">—</span>'}</td>`;
+    tr.innerHTML=`<td data-label="Parcela"><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
+      <td data-label="Vencimento">${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
+      <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,0)}</td>
+      <td class="metade" data-label="50%">${isAp?'—':BRL(meio,0)}</td>
+      <td data-label="Valor pago"><input type="number" step="0.01" value="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
+      <td data-label="Data pgto"><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
+      <td data-label="Juros">${isAp?'—':'<input type="number" step="0.01" value="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
+      <td data-label="Multa">${isAp?'—':'<input type="number" step="0.01" value="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
+      <td class="sec" data-label="Diferença">${dif!=null&&!isAp?'<span class="'+(dif>=0?'incc-ok':'incc-bad')+'">'+BRL(dif,2)+'</span>':'—'}</td>
+      <td class="sec" data-label="INCC embutido">${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>
+      <td data-label="Documentos">${canEdit?docChips(r.id,by):'<span class="proj">—</span>'}</td>`;
     tb.appendChild(tr);
   });
   tb.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{
