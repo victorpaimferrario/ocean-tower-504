@@ -56,7 +56,8 @@ header h1 .num{color:var(--gold)}
 .sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--teal);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .sl select,.sl input[type=date],.sl input[type=number]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;margin-top:6px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:16px 0}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px;display:flex;flex-direction:column;justify-content:center}
+.kpi-hr{border:none;border-top:1px solid var(--line);width:100%;margin:7px 0 5px}
 .kpi .k-label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(17px,2vw,22px);margin-top:4px;line-height:1}
 .kpi .k-sub{font-size:11.5px;color:var(--muted);margin-top:4px}
@@ -226,10 +227,10 @@ footer b{color:var(--ink)}
   <div class="alert" id="alert"></div>
 
   <div class="kpis">
-    <div class="kpi"><div class="k-label">Contrato · já pago</div><div class="k-val" id="kContrato">—</div><div class="k-sub" id="kPagoSub">—</div></div>
+    <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><hr class="kpi-hr"><div class="k-sub" id="kPagoSub">—</div></div>
     <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes, a valor de contrato</div></div>
     <div class="kpi"><div class="k-label">INCC pago acumulado</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção já embutida no que pagou</div></div>
-    <div class="kpi accent"><div class="k-label">Custo total projetado (com INCC)</div><div class="k-val" id="kAllin">—</div><div class="k-sub" id="kAllinSub"></div></div>
+    <div class="kpi accent"><div class="k-label">Custo total projetado (com INCC)</div><div class="k-val" id="kAllin">—</div></div>
     <div class="kpi"><div class="k-label">Preço do m² — contrato</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
 
@@ -984,7 +985,7 @@ function render(){
   $('kPagoSub').textContent='já pago '+BRL(c.jaPago)+' · '+PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,0)+' · '+npagas+' parc.'+(c.aportes>0?' + aportes':'');
   $('kFalta').textContent=BRL(c.baseRest);$('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s')+', a valor de contrato';
   $('kIncc').textContent=BRL(c.inccPago);
-  $('kAllin').textContent=BRL(c.allin);$('kAllinSub').textContent='com INCC + ITBI/registro/ambientação até a entrega · sua parte (50%): '+BRL(c.allin*PV);
+  $('kAllin').textContent=BRL(c.allin);
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='real/projetado (com tudo): '+BRL(c.allin/AREA)+'/m²';
   $('cntPagas').textContent=npagas+' pagas';
   renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
