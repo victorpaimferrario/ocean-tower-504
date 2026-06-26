@@ -35,12 +35,6 @@ header h1 .num{color:var(--gold)}
 .alert.show{display:block}
 .alert b{color:var(--coral)}
 .alert .big{font-weight:700;color:var(--coral)}
-.banner{background:var(--gold-soft);border:1px solid #E6D2A2;border-radius:12px;padding:12px 16px;margin-top:14px;display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.banner.show{display:flex}
-.banner span{font-size:13.5px;color:#6b531a;font-weight:500}.banner b{color:#4d3c12}
-.dlbtn{background:var(--gold);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
-.authbar{background:#F4F7F7;border:1px solid #D8E4E4;border-radius:12px;padding:10px 16px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.authbar span{font-size:13.5px;color:#33555c;font-weight:500}.authbar b{color:#16323a}
 .savestatus{color:#1C7C8C !important;font-size:12.5px !important;min-width:80px}
 .controls{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-top:14px;box-shadow:0 8px 30px rgba(10,42,51,.06)}
 .controls h2{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
@@ -154,9 +148,6 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 .docbtn:hover{background:var(--mist)}
 .docbtn.del{color:var(--coral);border-color:var(--coral-soft)}
 .docempty{text-align:center;color:var(--muted);padding:24px;font-size:13px}
-.pstatus{display:flex;gap:7px;margin-top:4px}
-.pstatus .ps{font-size:13px;filter:grayscale(1);opacity:.28;cursor:default}
-.pstatus .ps.on{filter:none;opacity:1}
 .lockmsg{font-size:13px;color:var(--muted);padding:14px 16px;background:var(--mist);border-radius:10px}
 @media(max-width:560px){
   .doccard{flex-direction:column;align-items:stretch}
@@ -180,7 +171,7 @@ footer b{color:var(--ink)}
   .head-auth{gap:8px}
   input,select,textarea{font-size:16px!important}
   table.pg input,.sl input,.sl select,.docctrl select,.addbar input,.modal input,.modal select{min-height:44px}
-  .tab,.authbtn,.btn,.docbtn,.dlbtn{min-height:44px}
+  .tab,.authbtn,.btn,.docbtn{min-height:44px}
   .docbtn{padding:11px 14px}
   .sl input[type=range]{height:8px}
   .sl input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
@@ -517,8 +508,8 @@ footer b{color:var(--ink)}
 const BRL=(n,d=0)=>'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const PCT=(n,d=1)=>(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
 const $=id=>document.getElementById(id);
-const GLOBAL=39184099.17,COEF=0.0119,PARTICIP=GLOBAL*COEF,APTO=456009.87,AREA=47.41;
-const ITBI=0.02,REG=0.013,AMB=12000,ENTRADA=(ITBI+REG)*APTO,MANUT=0.20,IPTU=1400,PV=0.50,PCDI=0.95;
+const APTO=456009.87,AREA=47.41;
+const ITBI=0.02,REG=0.013,AMB=12000,ENTRADA=(ITBI+REG)*APTO,PV=0.50;
 const M2BASE=10000,ENTREGA=new Date('2031-07-01'),T0=new Date('2026-06-01');
 const nOf=v=>(parseInt(v.slice(0,4))-2026)*12+(parseInt(v.slice(5,7))-6);
 const num=x=>x==null||x===''?0:(+x||0);
