@@ -540,7 +540,7 @@ const CAT_PARCELA=['boleto','pix_socios','comprovante_pago','comprovante']; // d
 const SB_URL='https://aipgtnvflezqnhzbpxam.supabase.co';
 const SB_KEY='sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf';
 const EDITORES=['victorpaim@pasf.com.br','eduardodeabreuls@gmail.com'];
-const sb=supabase.createClient(SB_URL,SB_KEY);
+const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
 
 async function bootstrap(){
   // cria os gráficos com as duas abas visíveis (senão os da aba oculta nascem 0×0)
