@@ -168,6 +168,17 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
 footer b{color:var(--ink)}
 @media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}}
+/* mobile: toque >=44px, fonte 16px (evita zoom do iOS), sliders maiores */
+@media(max-width:760px){
+  input,select,textarea{font-size:16px!important}
+  table.pg input,.sl input,.sl select,.docctrl select,.addbar input,.modal input,.modal select{min-height:44px}
+  .tab,.authbtn,.btn,.docbtn,.dlbtn{min-height:44px}
+  .docbtn{padding:11px 14px}
+  .sl input[type=range]{height:8px}
+  .sl input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
+  .sl input[type=range]::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff}
+  .docchip{padding:7px 10px;font-size:16px}
+}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 /* header com login no topo */
 .head-wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:18px 28px;flex-wrap:wrap;position:relative;z-index:1}
