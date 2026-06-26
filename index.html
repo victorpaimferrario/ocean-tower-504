@@ -17,6 +17,13 @@
 body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);
   font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;line-height:1.45}
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.tabs{display:flex;gap:6px;margin:16px 0 4px;border-bottom:2px solid var(--line)}
+.tab{appearance:none;background:none;border:none;font-family:inherit;font-size:14.5px;font-weight:600;color:var(--muted);padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--ocean2);border-bottom-color:var(--gold)}
+.tabpane{display:none}
+.tabpane.active{display:block}
+@media(max-width:560px){.tab{flex:1;padding:10px 6px;font-size:13.5px}}
 header{background:linear-gradient(135deg,var(--ocean),var(--ocean2));color:#fff;padding:30px 0 26px;position:relative;overflow:hidden}
 header::after{content:"";position:absolute;right:-60px;top:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(194,145,46,.18),transparent 70%)}
 .eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#9FC4CB;font-weight:600}
@@ -201,6 +208,13 @@ footer b{color:var(--ink)}
 </header>
 
 <div class="wrap">
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="tabAcomp" type="button">Acompanhamento</button>
+    <button class="tab" data-tab="tabAnalise" type="button">Análise do investimento</button>
+  </div>
+
+  <div class="tabpane active" id="tabAcomp">
   <div class="alert" id="alert"></div>
 
   <p class="desc" style="margin:2px 0 -4px;color:var(--muted)">Os quatro primeiros são <b>valores reais / de contrato</b>. O card em <b>dourado</b> é a <b>projeção</b> — estimativa do custo total até a entrega, corrigida pelo INCC que você vem pagando.</p>
@@ -282,8 +296,27 @@ footer b{color:var(--ink)}
     </div>
   </div>
 
-  <div class="section-div"><span>Análise de investimento</span></div>
+  <div class="grid">
+    <div class="panel">
+      <h3>Realizado × projetado <span class="badge">acumulado</span></h3>
+      <p class="desc">Pago efetivo contra a curva projetada (projeção ancorada no INCC real).</p>
+      <div class="chart-box"><canvas id="cAcum"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Por ano</h3>
+      <p class="desc">Desembolso realizado e projetado, ano a ano (total da unidade).</p>
+      <div class="chart-box"><canvas id="cAno"></canvas></div>
+    </div>
+  </div>
 
+    <div class="panel">
+      <h3>Composição do all-in atual</h3>
+      <p class="desc">Real pago, projeção do saldo, aportes e custos de entrada.</p>
+      <div class="chart-box"><canvas id="cComp"></canvas></div>
+    </div>
+  </div>
+
+  <div class="tabpane" id="tabAnalise">
   <div class="controls">
     <h2>Projeção, renda fixa e cenário de venda</h2>
     <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
@@ -305,31 +338,18 @@ footer b{color:var(--ink)}
     <div class="obsline" id="cdiFonte" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
   </div>
 
-  <div class="grid">
-    <div class="panel">
-      <h3>Realizado × projetado <span class="badge">acumulado</span></h3>
-      <p class="desc">Pago efetivo contra a curva projetada (projeção ancorada no INCC real).</p>
-      <div class="chart-box"><canvas id="cAcum"></canvas></div>
-    </div>
-    <div class="panel">
-      <h3>Por ano</h3>
-      <p class="desc">Desembolso realizado e projetado, ano a ano (total da unidade).</p>
-      <div class="chart-box"><canvas id="cAno"></canvas></div>
-    </div>
+  <div class="panel">
+    <h3>Evolução mês a mês <span class="badge">desde o início</span></h3>
+    <p class="desc">O pulso mensal: o INCC que você vem pagando e o custo de oportunidade acumulado (quanto o desembolsado já deixou de render no CDI). A decisão de vender/manter é de longo prazo; isto aqui acompanha desde o 1º boleto.</p>
+    <div id="evolVazio" class="docempty" style="display:none">Registre o primeiro pagamento para ver a evolução mês a mês.</div>
+    <div class="chart-box"><canvas id="cEvol"></canvas></div>
   </div>
 
-  <div class="grid">
-    <div class="panel">
-      <h3>Composição do all-in atual</h3>
-      <p class="desc">Real pago, projeção do saldo, aportes e custos de entrada.</p>
-      <div class="chart-box"><canvas id="cComp"></canvas></div>
-    </div>
     <div class="panel">
       <h3>Imóvel × renda fixa</h3>
       <p class="desc">O que sai do bolso contra o que esse dinheiro renderia aplicado, até a entrega.</p>
       <div class="chart-box"><canvas id="cRet"></canvas></div>
     </div>
-  </div>
 
   <div class="panel vpl-panel">
     <h3>Vale a pena vender na entrega? <span class="badge" id="cdData">entrega jul/2031</span></h3>
@@ -401,6 +421,7 @@ footer b{color:var(--ink)}
         <table class="mtbl"><tbody id="sensAtraso"></tbody></table>
       </div>
     </div>
+  </div>
   </div>
 
   <footer>
@@ -475,7 +496,10 @@ const EDITORES=['victorpaim@pasf.com.br','eduardodeabreuls@gmail.com'];
 const sb=supabase.createClient(SB_URL,SB_KEY);
 
 async function bootstrap(){
+  // cria os gráficos com as duas abas visíveis (senão os da aba oculta nascem 0×0)
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.add('active'));
   initCharts();
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.id==='tabAcomp'));
   const {data:{session}}=await sb.auth.getSession();
   canEdit=!!(session&&session.user&&EDITORES.includes(session.user.email));
   currentEmail=session&&session.user?session.user.email:null;
@@ -487,6 +511,7 @@ async function bootstrap(){
   $('entrega').addEventListener('change',()=>{const cu=$('entrega').value==='custom';$('entregaData').disabled=!cu;if(cu&&!$('entregaData').value)$('entregaData').value='2031-12-01';render();});
   $('useObs').addEventListener('change',render);
   $('apBtn').onclick=addAporte;
+  setupTabs();
   $('authBtn').onclick=onAuthClick;
   $('lgGo').onclick=doLogin;
   $('lgCancel').onclick=closeLogin;
@@ -886,6 +911,11 @@ function initCharts(){
     datasets:[{data:[],backgroundColor:['#0E4D5C','#2E7D52'],borderRadius:4}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.y)}}},
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
+  charts.evol=new Chart($('cEvol'),{data:{labels:[],datasets:[
+    {type:'line',label:'INCC pago acumulado',data:[],borderColor:'#C2912E',backgroundColor:'rgba(194,145,46,.12)',fill:true,tension:.25,pointRadius:3},
+    {type:'line',label:'Custo de oportunidade acumulado',data:[],borderColor:'#1C7C8C',borderDash:[5,4],fill:false,tension:.25,pointRadius:3}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
 }
 
 function docsByParcela(){const m={};(docs||[]).forEach(d=>{if(d.parcela_id){(m[d.parcela_id]||(m[d.parcela_id]=[])).push(d);}});return m;}
@@ -950,7 +980,7 @@ function render(){
   $('kAllin').textContent=BRL(c.allin);$('kAllinSub').textContent='com INCC + ITBI/registro/ambientação até a entrega · sua parte (50%): '+BRL(c.allin*PV);
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='real/projetado (com tudo): '+BRL(c.allin/AREA)+'/m²';
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);
+  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
 }
 
 function renderAlert(){
@@ -1183,6 +1213,32 @@ function renderSens(c){
     return '<tr><td>'+nome+'</td><td>'+d.toLocaleDateString('pt-BR',{month:'short',year:'numeric'})+'</td><td>'+fmt(av.tir)+'</td></tr>';
   }).join('');
   $('sensAtraso').innerHTML='<tr><th>Entrega</th><th>Data</th><th>TIR vender</th></tr>'+rows2;
+}
+
+function renderEvol(c){
+  const s=c.s, taxa=s.cdi*s.pctcdi, hoje=new Date();
+  const pagos=state.itens.filter(r=>r.valor_pago!=null&&(r.data_pagamento||r.vencimento))
+    .sort((a,b)=>(a.data_pagamento||a.vencimento).localeCompare(b.data_pagamento||b.vencimento));
+  const labels=[],incc=[],opp=[];let ai=0,ao=0;
+  pagos.forEach(r=>{
+    const ds=r.data_pagamento||r.vencimento, d=new Date(ds+'T00:00:00');
+    if(r.tipo!=='aporte')ai+=num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa);
+    ao+=num(r.valor_pago)*(Math.pow(1+taxa,Math.max(0,yearsBetween(d,hoje)))-1);
+    labels.push(ds.slice(2,7).split('-').reverse().join('/'));incc.push(ai);opp.push(ao);
+  });
+  const vazio=$('evolVazio'),box=charts.evol&&charts.evol.canvas?charts.evol.canvas.parentNode:null;
+  if(!labels.length){if(vazio)vazio.style.display='';if(box)box.style.display='none';}
+  else{if(vazio)vazio.style.display='none';if(box)box.style.display='';}
+  charts.evol.data.labels=labels;charts.evol.data.datasets[0].data=incc;charts.evol.data.datasets[1].data=opp;charts.evol.update();
+}
+
+function setupTabs(){
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
+    document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.id===b.dataset.tab));
+    setTimeout(()=>{Object.values(charts).forEach(c=>{try{c.resize();}catch(e){}});},40);
+    window.scrollTo({top:0});
+  });
 }
 
 bootstrap();
