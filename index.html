@@ -132,11 +132,11 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 .docctrl label{font-size:11px;color:var(--muted);font-weight:600}
 .docctrl select{padding:10px 11px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;background:#fff;width:100%}
 .docfilter{margin:14px 0 10px}
-.dropzone{border:2px dashed var(--line);border-radius:14px;padding:30px 18px;text-align:center;cursor:pointer;transition:.15s;background:var(--mist)}
+.dropzone{border:2px dashed var(--line);border-radius:14px;padding:16px 16px;text-align:center;cursor:pointer;transition:.15s;background:var(--mist)}
 .dropzone:hover,.dropzone:focus{border-color:var(--teal);background:#fff;outline:none}
 .dropzone.drag{border-color:var(--teal);background:var(--green-soft)}
-.dz-icon{font-size:30px;line-height:1}
-.dz-title{font-size:15px;font-weight:600;color:var(--ink);margin-top:8px}
+.dz-icon{font-size:22px;line-height:1}
+.dz-title{font-size:14px;font-weight:600;color:var(--ink);margin-top:4px}
 .dz-link{color:var(--teal);text-decoration:underline}
 .dz-sub{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
 .upstatus{margin-top:10px;font-size:13px;padding:9px 12px;border-radius:9px;background:var(--gold-soft);color:var(--ink)}
@@ -162,8 +162,8 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
   .doccard{flex-direction:column;align-items:stretch}
   .doccard .dc-acts{flex-wrap:wrap}
   .doccard .dc-acts .docbtn{flex:1 1 28%;min-width:88px;text-align:center;padding:12px 6px;white-space:nowrap}
-  .dropzone{padding:36px 16px}
-  .dz-title{font-size:16px}
+  .dropzone{padding:18px 14px}
+  .dz-title{font-size:15px}
 }
 footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
 footer b{color:var(--ink)}
@@ -273,7 +273,6 @@ footer b{color:var(--ink)}
     <div class="kpi"><div class="k-label">Preço do m² — contrato</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
 
-  <div class="grid">
   <div class="panel" id="pagCard">
     <h3>💰 Documentos de pagamento</h3>
     <p class="desc">Boleto, comprovante do seu Pix p/ Dudu e comprovante de pagamento. Ficam vinculados à parcela e aparecem na coluna <b>Docs</b> da tabela acima.</p>
@@ -297,6 +296,20 @@ footer b{color:var(--ink)}
         <div class="dz-sub">Boleto em PDF vincula sozinho; nos demais o sistema pergunta a parcela</div>
       </div>
       <div id="upPag" class="upstatus" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Parcelas <span class="badge" id="cntPagas">0 pagas</span></h3>
+    <p class="desc"><b>Valor pago</b> e <b>data</b> de cada boleto. Se atrasou, preencha <b>juros</b> e <b>multa</b> — o resto vira INCC automaticamente.</p>
+    <div class="tbl-wrap"><table class="pg"><thead><tr>
+      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>Diferença</th><th>INCC embutido</th><th>Docs</th>
+    </tr></thead><tbody id="tbody"></tbody></table></div>
+    <div class="addbar">
+      <div class="f"><label>Novo aporte — descrição</label><input id="apObs" placeholder="Ex.: revisão de orçamento 2027/1"></div>
+      <div class="f"><label>Data</label><input id="apData" type="date"></div>
+      <div class="f"><label>Valor (R$)</label><input id="apVal" type="number" step="0.01" placeholder="0,00"></div>
+      <button class="btn" id="apBtn" style="margin:0">+ Registrar aporte</button>
     </div>
   </div>
 
@@ -326,21 +339,6 @@ footer b{color:var(--ink)}
       </div>
       <div id="upNeg" class="upstatus" style="display:none"></div>
       <div id="docsBody" class="doclist" style="margin-top:10px"></div>
-    </div>
-  </div>
-  </div>
-
-  <div class="panel">
-    <h3>Parcelas <span class="badge" id="cntPagas">0 pagas</span></h3>
-    <p class="desc"><b>Valor pago</b> e <b>data</b> de cada boleto. Se atrasou, preencha <b>juros</b> e <b>multa</b> — o resto vira INCC automaticamente.</p>
-    <div class="tbl-wrap"><table class="pg"><thead><tr>
-      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>Diferença</th><th>INCC embutido</th><th>Docs</th>
-    </tr></thead><tbody id="tbody"></tbody></table></div>
-    <div class="addbar">
-      <div class="f"><label>Novo aporte — descrição</label><input id="apObs" placeholder="Ex.: revisão de orçamento 2027/1"></div>
-      <div class="f"><label>Data</label><input id="apData" type="date"></div>
-      <div class="f"><label>Valor (R$)</label><input id="apVal" type="number" step="0.01" placeholder="0,00"></div>
-      <button class="btn" id="apBtn" style="margin:0">+ Registrar aporte</button>
     </div>
   </div>
 
