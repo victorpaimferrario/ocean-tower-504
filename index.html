@@ -201,9 +201,9 @@ footer b{color:var(--ink)}
 <header>
   <div class="wrap head-wrap">
     <div class="head-main">
-      <div class="eyebrow">Ocean Tower · unidade 504 · Paim &amp; Duduzinho</div>
-      <h1>Acompanhamento real <span class="num">×</span> projetado</h1>
-      <p class="sub">O INCC é deduzido do próprio boleto pago — sem depender de fonte externa. Registre o valor pago e, se atrasar, os juros e a multa.</p>
+      <div class="eyebrow">Incorporação a preço de custo · AD HAUS</div>
+      <h1>Ocean Tower <span class="num">·</span> unidade 504 <span class="num">·</span> Paim &amp; Duduzinho</h1>
+      <p class="sub">Metragem: <b>47,41 m²</b> &nbsp;·&nbsp; Valor do m²: <b id="hdM2">—</b></p>
     </div>
     <div class="head-side">
       <div class="head-auth">
@@ -987,6 +987,7 @@ function render(){
   $('kIncc').textContent=BRL(c.inccPago);
   $('kAllin').textContent=BRL(c.allin);
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='real/projetado (com tudo): '+BRL(c.allin/AREA)+'/m²';
+  {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
   $('cntPagas').textContent=npagas+' pagas';
   renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
 }
