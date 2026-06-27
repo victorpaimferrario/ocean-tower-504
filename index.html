@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--ocean:#0A2A33;--ocean2:#0E4D5C;--teal:#1C7C8C;--mist:#EAF0F1;--paper:#F4F7F7;
@@ -941,27 +942,32 @@ function compute(){
 const gridc='#ECF1F1';
 function initCharts(){
   Chart.defaults.font.family="Inter";Chart.defaults.font.size=12;Chart.defaults.color='#5C7178';
-  charts.acum=new Chart($('cAcum'),{data:{labels:[],datasets:[
+  charts.acum=new Chart($('cAcum'),{plugins:[ChartDataLabels],data:{labels:[],datasets:[
     {type:'line',label:'Projetado',data:[],borderColor:'#9FB7BC',borderDash:[5,4],fill:false,tension:.25,pointRadius:0},
     {type:'line',label:'Realizado',data:[],borderColor:'#1C7C8C',backgroundColor:'rgba(28,124,140,.12)',fill:true,tension:.25,pointRadius:0}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}}},
+    options:{maintainAspectRatio:false,layout:{padding:{top:18,right:34}},plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},
+      datalabels:{align:'top',color:c=>c.dataset.borderColor,font:{size:11,weight:'600'},formatter:(v,ctx)=>{const d=ctx.dataset.data;let li=-1;for(let i=0;i<d.length;i++)if(d[i]!=null)li=i;return ctx.dataIndex===li&&v!=null?BRL(v):'';}}},
       scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
-  charts.ano=new Chart($('cAno'),{type:'bar',data:{labels:[],datasets:[
+  charts.ano=new Chart($('cAno'),{type:'bar',plugins:[ChartDataLabels],data:{labels:[],datasets:[
     {label:'Realizado',data:[],backgroundColor:'#1C7C8C',borderRadius:3},
     {label:'Projetado',data:[],backgroundColor:'#CBD8DA',borderRadius:3}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}}},
+    options:{maintainAspectRatio:false,layout:{padding:{top:16}},plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},
+      datalabels:{anchor:'end',align:'top',color:'#5C7178',font:{size:9,weight:'600'},formatter:v=>v>0?Math.round(v/1000)+'k':''}},
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
-  charts.comp=new Chart($('cComp'),{type:'doughnut',data:{labels:['Pago real','Projeção saldo','Aportes','Entrada','Ambientação'],
+  charts.comp=new Chart($('cComp'),{type:'doughnut',plugins:[ChartDataLabels],data:{labels:['Pago real','Projeção saldo','Aportes','Entrada','Ambientação'],
     datasets:[{data:[],backgroundColor:['#1C7C8C','#9FB7BC','#C2912E','#0E4D5C','#BF4A30'],borderWidth:2,borderColor:'#fff'}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)}}}}});
-  charts.ret=new Chart($('cRet'),{type:'bar',data:{labels:['Sai do bolso','Renda fixa (entrega)'],
+    options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)}},
+      datalabels:{color:'#fff',font:{size:10,weight:'600'},formatter:(v,ctx)=>{const t=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+(+b||0),0);return v>t*0.05?BRL(v):'';}}}}});
+  charts.ret=new Chart($('cRet'),{type:'bar',plugins:[ChartDataLabels],data:{labels:['Sai do bolso','Renda fixa (entrega)'],
     datasets:[{data:[],backgroundColor:['#0E4D5C','#2E7D52'],borderRadius:4}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.y)}}},
+    options:{maintainAspectRatio:false,layout:{padding:{top:22}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.y)}},
+      datalabels:{anchor:'end',align:'top',color:'#13262B',font:{weight:'600',size:12},formatter:v=>BRL(v)}},
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
-  charts.evol=new Chart($('cEvol'),{data:{labels:[],datasets:[
+  charts.evol=new Chart($('cEvol'),{plugins:[ChartDataLabels],data:{labels:[],datasets:[
     {type:'line',label:'INCC pago acumulado',data:[],borderColor:'#C2912E',backgroundColor:'rgba(194,145,46,.12)',fill:true,tension:.25,pointRadius:3},
     {type:'line',label:'Custo de oportunidade acumulado',data:[],borderColor:'#1C7C8C',borderDash:[5,4],fill:false,tension:.25,pointRadius:3}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}}},
+    options:{maintainAspectRatio:false,layout:{padding:{top:18,right:34}},plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}},
+      datalabels:{align:'top',color:c=>c.dataset.borderColor,font:{size:11,weight:'600'},formatter:(v,ctx)=>{const d=ctx.dataset.data;let li=-1;for(let i=0;i<d.length;i++)if(d[i]!=null)li=i;return ctx.dataIndex===li&&v!=null?BRL(v):'';}}},
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
 }
 
