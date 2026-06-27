@@ -1105,7 +1105,7 @@ function analisar(c,vendaOverride,entregaOverride){
     const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
     nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfRF+=aplica(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });
-  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,T0);flows.push({t:0,cf:-(ENTRADA+AMB)});
+  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,ENT);flows.push({t:anosE,cf:-(ENTRADA+AMB)});
   const valorHoje=M2BASE*AREA;
   // --- cenário de saída (revenda) ---
   const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
