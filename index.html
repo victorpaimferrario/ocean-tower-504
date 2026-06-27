@@ -71,6 +71,10 @@ header h1 .num{color:var(--gold)}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px}
 .panel h3{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-bottom:2px}
 .panel .desc{font-size:12px;color:var(--muted);margin-bottom:14px}
+.card-help{margin-top:10px;font-size:12px}
+.card-help summary{cursor:pointer;color:var(--teal);font-weight:600;list-style:none}
+.card-help summary::-webkit-details-marker{display:none}
+.card-help p{color:var(--muted);margin-top:6px;line-height:1.55}
 .chart-box{position:relative;height:260px}
 .thermo-panel{background:linear-gradient(135deg,var(--ocean),var(--ocean2));color:#fff;border:none}
 .thermo-panel h3{color:#fff}.thermo-panel .desc{color:#A9CAD0}
@@ -385,6 +389,10 @@ footer b{color:var(--ink)}
       <h3>Imóvel × renda fixa</h3>
       <p class="desc">O que sai do bolso contra o que esse dinheiro renderia aplicado, até a entrega.</p>
       <div class="chart-box"><canvas id="cRet"></canvas></div>
+      <details class="card-help">
+        <summary>ⓘ como é calculado</summary>
+        <p>Cada desembolso real — parcela <b>corrigida pelo INCC</b> + aportes + ITBI/registro + ambientação — é aplicado na renda fixa (CDI × % do CDI, líquido de IR quando tributado) da data em que sai até a entrega.<br><br><b>Parcelas já pagas</b> entram pelo <b>valor real</b> que você pagou (cravado). <b>Parcelas futuras</b> são <b>projeção</b> pelo INCC (o observado nos boletos ou o do slider) e <b>se reajustam a cada novo pagamento</b> — por isso o número é uma estimativa que fica mais precisa conforme você paga, convergindo para o realizado até a entrega.</p>
+      </details>
     </div>
 
   <div class="panel vpl-panel">
