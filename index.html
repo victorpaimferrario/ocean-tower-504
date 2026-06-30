@@ -763,18 +763,21 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail}).select('id').single();
     if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg(st,'Erro ao indexar '+file.name);continue;}
     ok++; if(vinc){ultimoVinc=vinc;lastVinc={cat,ref:vinc,id:ins.data&&ins.data.id,auto:autoFoco,nota:validacao?validacao.nota:'',alerta:validacao?validacao.alerta:false};}
-    // comprovante de pagamento (PDF): oferece preencher valor pago + data na parcela
-    if(cat==='comprovante_pago' && parcela && lido && lido.valores && lido.valores.length){
+    // comprovante de pagamento: preenche valor pago + data na parcela (lê do PDF; se não der, pergunta)
+    if(cat==='comprovante_pago' && parcela){
       const row=state.itens.find(x=>String(x.id)===String(parcela));
       if(row && row.valor_pago==null){
-        const v=Math.max(...lido.valores);
-        const dts=(lido.datas||[]).slice().sort();
-        const dt=dts.length?dts[dts.length-1]:null;
-        const dtBR=dt?dt.split('-').reverse().join('/'):'';
-        if(confirm('Preencher o pagamento de '+row.ref+'?\n\nValor pago: '+BRL(v,2)+(dtBR?'\nData do pagamento: '+dtBR:'')+'\n\nVocê pode ajustar depois na tabela.')){
-          row.valor_pago=v; if(dt)row.data_pagamento=dt;
-          await saveRow(row);
+        const vExtr=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):null;
+        const dts=(lido&&lido.datas)?lido.datas.slice().sort():[];
+        let dt=dts.length?dts[dts.length-1]:null, v=null;
+        if(vExtr!=null){
+          const dtBR=dt?dt.split('-').reverse().join('/'):'';
+          if(confirm('Preencher o pagamento de '+row.ref+'?\n\nValor pago: '+BRL(vExtr,2)+(dtBR?'\nData do pagamento: '+dtBR:'')+'\n\nVocê pode ajustar depois na tabela.'))v=vExtr;
+        } else {
+          const resp=prompt('Comprovante de '+row.ref+' anexado, mas não consegui ler o valor (PDF sem texto ou imagem).\n\nDigite o valor pago em R$ (ex.: 24000 ou 24.000,00), ou cancele:','');
+          if(resp!=null && resp.trim()!==''){const sx=resp.trim();v=sx.indexOf(',')>=0?parseFloat(sx.replace(/\./g,'').replace(',','.')):parseFloat(sx.replace(/[^0-9.]/g,''));}
         }
+        if(v!=null && !isNaN(v) && v>0){row.valor_pago=v; if(dt)row.data_pagamento=dt; await saveRow(row); upMsg(st,'✓ pagamento de '+row.ref+' preenchido: '+BRL(v,2));}
       }
     }
   }
