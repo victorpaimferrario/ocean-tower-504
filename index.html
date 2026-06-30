@@ -515,6 +515,10 @@ footer b{color:var(--ink)}
 <script>
 const BRL=(n,d=0)=>'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const PCT=(n,d=1)=>(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
+// formato monetário p/ inputs: "1.234,56" (centavos só quando há); parse aceita "1.234,56" e "1234"/"1234.56"
+const numBR=n=>{if(n==null||n==='')return '';const x=+n;return x.toLocaleString('pt-BR',{minimumFractionDigits:(x%1?2:0),maximumFractionDigits:2});};
+const parseBRnum=s=>{if(s==null)return null;let x=String(s).replace(/[^0-9.,-]/g,'');if(x==='')return null;if(x.indexOf(',')>=0)x=x.replace(/\./g,'').replace(',','.');const v=parseFloat(x);return isNaN(v)?null:v;};
+const moneyIn=n=>(n==null||n==='')?'':'R$ '+numBR(n);
 const $=id=>document.getElementById(id);
 const APTO=456009.87,AREA=47.41;
 const ITBI=0.02,REG=0.013,AMB=12000,ENTRADA=(ITBI+REG)*APTO,PV=0.50;
@@ -1079,20 +1083,24 @@ function renderTable(c){
       <td data-label="Vencimento">${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}</td>
       <td class="metade" data-label="50%">${isAp?'—':BRL(meio,2)}</td>
-      <td data-label="Valor pago"><input type="number" step="0.01" value="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
+      <td data-label="Valor pago"><input type="text" inputmode="decimal" value="${moneyIn(r.valor_pago)}" data-raw="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
       <td data-label="Data pgto"><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
-      <td data-label="Juros">${isAp?'—':'<input type="number" step="0.01" value="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
-      <td data-label="Multa">${isAp?'—':'<input type="number" step="0.01" value="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
+      <td data-label="Juros">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.juros)+'" data-raw="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
+      <td data-label="Multa">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.multa)+'" data-raw="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
       <td class="sec" data-label="Diferença">${dif!=null&&!isAp?'<span class="'+(dif>=0?'incc-ok':'incc-bad')+'">'+BRL(dif,2)+'</span>':'—'}</td>
       <td class="sec" data-label="INCC embutido">${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>
       <td data-label="Documentos">${canEdit?docChips(r.id,by):'<span class="proj">—</span>'}</td>`;
     tb.appendChild(tr);
   });
-  tb.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{
-    const id=+inp.dataset.id,f=inp.dataset.f;let v=inp.value;
-    v=(f==='data_pagamento')?(v||null):(v===''?null:parseFloat(v));
-    const row=state.itens.find(x=>x.id===id);if(row){row[f]=v;saveRow(row);}render();
-  }));
+  tb.querySelectorAll('input').forEach(inp=>{
+    const f=inp.dataset.f, money=(f==='valor_pago'||f==='juros'||f==='multa');
+    if(money)inp.addEventListener('focus',()=>{inp.value=inp.dataset.raw||'';inp.select&&inp.select();});
+    inp.addEventListener('change',()=>{
+      const id=+inp.dataset.id;let v=inp.value;
+      v=(f==='data_pagamento')?(v||null):(money?(v.trim()===''?null:parseBRnum(v)):(v===''?null:parseFloat(v)));
+      const row=state.itens.find(x=>x.id===id);if(row){row[f]=v;saveRow(row);}render();
+    });
+  });
   tb.querySelectorAll('[data-docopen]').forEach(b=>b.onclick=()=>openDoc(decodeURIComponent(b.dataset.docopen)));
   tb.querySelectorAll('[data-mng]').forEach(b=>b.onclick=()=>openDocMgmt(+b.dataset.mng));
 }
