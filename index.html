@@ -732,22 +732,22 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     if(file.size>25*1024*1024){fail++;upMsg(st,'⚠️ '+file.name+' passou de 25 MB — pulado');continue;}
     let parcela=null, vinc='', autoFoco=false, validacao=null, lido=null;
     if(isParcelaCat){
-      const isPDF=/pdf/i.test((file.type||'')+file.name);
-      if(cat==='boleto' && isPDF){
-        upMsg(st,'📄 Lendo '+file.name+'…');
-        lido=await lerBoleto(file);
-        const m=casarParcela(lido);
+      const isPDF=/pdf/i.test((file.type||'')+file.name), isImg=ehImagem(file);
+      if(isPDF||isImg){
+        upMsg(st,isImg?'🔎 Lendo a imagem (OCR)…':'📄 Lendo '+file.name+'…');
+        lido=await lerDoc(file);
+      }
+      if(cat==='boleto'){
+        const m=lido?casarParcela(lido):null;
         if(m){parcela=String(m.id);vinc=m.ref;
           const vb=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):m.valor_base;
           pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100};
         }
-      } else if(cat!=='boleto' && isPDF){
-        // Pix/Pagamento em PDF: o foco (boleto, com vencimento único) manda; a leitura VALIDA.
+      } else {
+        // Pix/Pagamento: o foco (boleto, com vencimento único) manda; a leitura VALIDA.
         // Sem foco, tenta identificar pelo conteúdo (valor — ambíguo entre parcelas de mesmo valor).
-        upMsg(st,'📄 Lendo '+file.name+'…');
-        lido=await lerBoleto(file);
-        let m=parcelaFoco?state.itens.find(x=>String(x.id)===String(parcelaFoco.id)):(cat==='pix_socios'?casarPix(lido):casarPagamento(lido));
-        if(m){parcela=String(m.id);vinc=m.ref;autoFoco=true;validacao=validarDoc(cat,lido,m);}
+        let m=parcelaFoco?state.itens.find(x=>String(x.id)===String(parcelaFoco.id)):(lido?(cat==='pix_socios'?casarPix(lido):casarPagamento(lido)):null);
+        if(m){parcela=String(m.id);vinc=m.ref;autoFoco=true;validacao=lido?validarDoc(cat,lido,m):null;}
       }
       // imagem (ou PDF sem leitura): usa a "parcela em foco" sem perguntar
       if(!parcela && cat!=='boleto' && parcelaFoco){parcela=String(parcelaFoco.id);vinc=parcelaFoco.ref;autoFoco=true;}
@@ -858,6 +858,12 @@ async function ensurePdfjs(){
   try{_pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
   return _pdfjs;
 }
+function extrairDados(txt){
+  txt=txt||'';
+  const datas=[...new Set([...txt.matchAll(/(\d{2})\/(\d{2})\/(20\d{2})/g)].map(m=>m[3]+'-'+m[2]+'-'+m[1]))];
+  const valores=[...txt.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
+  return {datas,valores,texto:txt.toLowerCase()};
+}
 function lerBoleto(file){
   // lê o PDF; com timeout p/ nunca travar o upload se o pdf.js demorar/falhar
   const work=(async()=>{
@@ -867,12 +873,24 @@ function lerBoleto(file){
     let txt='';
     const np=Math.min(pdf.numPages,2);
     for(let p=1;p<=np;p++){const pg=await pdf.getPage(p);const c=await pg.getTextContent();txt+=' '+c.items.map(it=>it.str).join(' ');}
-    const datas=[...new Set([...txt.matchAll(/(\d{2})\/(\d{2})\/(20\d{2})/g)].map(m=>m[3]+'-'+m[2]+'-'+m[1]))];
-    const valores=[...txt.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
-    return {datas,valores,texto:txt.toLowerCase()};
+    return extrairDados(txt);
   })().catch(e=>{console.warn('leitura PDF falhou',e);return null;});
   return Promise.race([work,new Promise(r=>setTimeout(()=>r(null),12000))]);
 }
+let _ocrWorker=null;
+async function ensureOcr(){
+  if(_ocrWorker)return _ocrWorker;
+  if(!window.Tesseract){await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+  _ocrWorker=await Tesseract.createWorker('por');
+  return _ocrWorker;
+}
+function lerImagem(file){
+  // OCR (Tesseract) com timeout; se falhar/demorar, cai no preenchimento manual
+  const work=(async()=>{const w=await ensureOcr();const {data:{text}}=await w.recognize(file);return extrairDados(text);})().catch(e=>{console.warn('OCR falhou',e);return null;});
+  return Promise.race([work,new Promise(r=>setTimeout(()=>r(null),30000))]);
+}
+function ehImagem(file){return /^image\//i.test(file.type||'')||/\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(file.name||'');}
+function lerDoc(file){return ehImagem(file)?lerImagem(file):lerBoleto(file);}
 const BENEF_PIX=['eduardo','abreu','lima','sobrinho'];
 function _temValor(valores,alvo,pct,abs){return (valores||[]).some(v=>Math.abs(v-alvo)<=Math.max(abs||0,alvo*(pct||0)));}
 function casarPagamento(lido){ // comprovante de pagamento traz os dados do boleto (valor c/ INCC + vencimento)
