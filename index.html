@@ -726,12 +726,12 @@ async function uploadFiles(fileList,catId,statusId,inpId){
   for(let i=0;i<files.length;i++){
     const file=files[i];
     if(file.size>25*1024*1024){fail++;upMsg(st,'⚠️ '+file.name+' passou de 25 MB — pulado');continue;}
-    let parcela=null, vinc='', autoFoco=false, validacao=null;
+    let parcela=null, vinc='', autoFoco=false, validacao=null, lido=null;
     if(isParcelaCat){
       const isPDF=/pdf/i.test((file.type||'')+file.name);
       if(cat==='boleto' && isPDF){
         upMsg(st,'📄 Lendo '+file.name+'…');
-        const lido=await lerBoleto(file);
+        lido=await lerBoleto(file);
         const m=casarParcela(lido);
         if(m){parcela=String(m.id);vinc=m.ref;
           const vb=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):m.valor_base;
@@ -741,7 +741,7 @@ async function uploadFiles(fileList,catId,statusId,inpId){
         // Pix/Pagamento em PDF: o foco (boleto, com vencimento único) manda; a leitura VALIDA.
         // Sem foco, tenta identificar pelo conteúdo (valor — ambíguo entre parcelas de mesmo valor).
         upMsg(st,'📄 Lendo '+file.name+'…');
-        const lido=await lerBoleto(file);
+        lido=await lerBoleto(file);
         let m=parcelaFoco?state.itens.find(x=>String(x.id)===String(parcelaFoco.id)):(cat==='pix_socios'?casarPix(lido):casarPagamento(lido));
         if(m){parcela=String(m.id);vinc=m.ref;autoFoco=true;validacao=validarDoc(cat,lido,m);}
       }
@@ -763,6 +763,20 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail}).select('id').single();
     if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg(st,'Erro ao indexar '+file.name);continue;}
     ok++; if(vinc){ultimoVinc=vinc;lastVinc={cat,ref:vinc,id:ins.data&&ins.data.id,auto:autoFoco,nota:validacao?validacao.nota:'',alerta:validacao?validacao.alerta:false};}
+    // comprovante de pagamento (PDF): oferece preencher valor pago + data na parcela
+    if(cat==='comprovante_pago' && parcela && lido && lido.valores && lido.valores.length){
+      const row=state.itens.find(x=>String(x.id)===String(parcela));
+      if(row && row.valor_pago==null){
+        const v=Math.max(...lido.valores);
+        const dts=(lido.datas||[]).slice().sort();
+        const dt=dts.length?dts[dts.length-1]:null;
+        const dtBR=dt?dt.split('-').reverse().join('/'):'';
+        if(confirm('Preencher o pagamento de '+row.ref+'?\n\nValor pago: '+BRL(v,2)+(dtBR?'\nData do pagamento: '+dtBR:'')+'\n\nVocê pode ajustar depois na tabela.')){
+          row.valor_pago=v; if(dt)row.data_pagamento=dt;
+          await saveRow(row);
+        }
+      }
+    }
   }
   if($(inpId))$(inpId).value='';
   await loadDocs();renderDocs();render();
