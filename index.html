@@ -94,6 +94,8 @@ header h1 .num{color:var(--gold)}
 .sim-out .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
 .sim-out .v{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-top:3px}
 .sim-out .v.extra{color:var(--coral)}
+.sim-out .ccv{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.35}
+.sim-out .ccv b{color:var(--ink);font-weight:600}
 .tbl-wrap{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:12px}
 table.pg{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1060px}
 .docchips{display:flex;gap:4px;flex-wrap:wrap}
@@ -399,10 +401,10 @@ footer b{color:var(--ink)}
     <h3>Seu desembolso corrigido na entrega <span class="badge" id="ccData"></span></h3>
     <p class="desc">Quanto o que você desembolsou (parcelas + aportes + ITBI/registro + ambientação) vale na entrega, corrigindo <b>cada saída da sua data</b> por 4 índices — <b>índice real (Banco Central) no passado, projeção só no futuro</b>. É a base do <b>valor mínimo de venda</b>: o piso pra não sair no prejuízo.</p>
     <div class="sim-out">
-      <div class="b"><div class="l">IPCA (inflação)</div><div class="v" id="ccIpca">—</div></div>
-      <div class="b"><div class="l">INCC (obra)</div><div class="v" id="ccIncc">—</div></div>
-      <div class="b"><div class="l">CDI (100%, bruto)</div><div class="v" id="ccCdi">—</div></div>
-      <div class="b"><div class="l">Renda fixa (% CDI, líq.)</div><div class="v" id="ccRf">—</div></div>
+      <div class="b"><div class="l">IPCA (inflação)</div><div class="v" id="ccIpca">—</div><div class="ccv" id="ccIpcaV"></div></div>
+      <div class="b"><div class="l">INCC (obra)</div><div class="v" id="ccIncc">—</div><div class="ccv" id="ccInccV"></div></div>
+      <div class="b"><div class="l">CDI (100%, bruto)</div><div class="v" id="ccCdi">—</div><div class="ccv" id="ccCdiV"></div></div>
+      <div class="b"><div class="l">Renda fixa (% CDI, líq.)</div><div class="v" id="ccRf">—</div><div class="ccv" id="ccRfV"></div></div>
     </div>
     <p class="desc" id="ccNota" style="margin-top:10px;font-size:13px"></p>
   </div>
@@ -1213,7 +1215,8 @@ function analisar(c,vendaOverride,entregaOverride){
   // preço de venda bruto p/ o líquido cobrir um alvo (IR de ganho incide sobre o custo NOMINAL de aquisição)
   const precoParaLiquido=(alvo)=>{const si=(alvo+custoVenda)/(1-corret);if(isentoG)return si;const A=(alvo-0.15*totalNom)/0.85;const ci=(A+custoVenda)/(1-corret);return (ci*(1-corret)-custoVenda>totalNom)?ci:si;};
   const precoSugerido=precoParaLiquido(vfRF);
-  const precoMinIPCA=precoParaLiquido(corrIPCA);
+  const precoMinIPCA=precoParaLiquido(corrIPCA), precoMinINCC=precoParaLiquido(corrINCC),
+        precoMinCDI=precoParaLiquido(corrCDI), precoMinRF=precoParaLiquido(vfRF);
   const liquido=liquidoDe(venda), custosSaida=venda?(venda-liquido):0;
   let tir=null,moic=null,tirReal=null;
   if(venda){const f2=flows.concat([{t:anosE,cf:liquido}]);tir=irr(f2);moic=liquido/totalNom;if(tir!=null)tirReal=(1+tir)/(1+ipca)-1;}
@@ -1221,7 +1224,7 @@ function analisar(c,vendaOverride,entregaOverride){
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
     breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj,
     venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows,
-    corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA,realizado,projetado};
+    corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA,precoMinINCC,precoMinCDI,precoMinRF,realizado,projetado};
 }
 
 function analisarRenda(a){
@@ -1255,10 +1258,14 @@ function renderCorrigido(c){
   $('ccIncc').textContent=BRL(a.corrINCC);
   $('ccCdi').textContent=BRL(a.corrCDI);
   $('ccRf').textContent=BRL(a.vfRF);
+  $('ccIpcaV').innerHTML='vender por ≥ <b>'+BRL(a.precoMinIPCA)+'</b>';
+  $('ccInccV').innerHTML='vender por ≥ <b>'+BRL(a.precoMinINCC)+'</b>';
+  $('ccCdiV').innerHTML='vender por ≥ <b>'+BRL(a.precoMinCDI)+'</b>';
+  $('ccRfV').innerHTML='vender por ≥ <b>'+BRL(a.precoMinRF)+'</b>';
   const temReal=Object.keys(SERIES.ipca||{}).length>0;
   const fData=SERIES.atualizado_em?new Date(SERIES.atualizado_em).toLocaleDateString('pt-BR'):null;
-  let txt='Você desembolsou <b>'+BRL(a.totalNom)+'</b> (nominal). Trazido para a entrega — <b>passado por índice real, futuro projetado</b>: IPCA → <b>'+BRL(a.corrIPCA)+'</b> · INCC → <b>'+BRL(a.corrINCC)+'</b> · CDI 100% → <b>'+BRL(a.corrCDI)+'</b> · renda fixa líq. → <b>'+BRL(a.vfRF)+'</b>. ';
-  txt+='<b>Piso para não perder poder de compra (IPCA): venda por ≥ '+BRL(a.precoMinIPCA)+'</b> — aí o líquido cobre '+BRL(a.corrIPCA)+', já descontando corretagem, cartório e IR de ganho. ';
+  let txt='Você desembolsou <b>'+BRL(a.totalNom)+'</b> (nominal). Em cada card: o número grande = quanto seu dinheiro <b>vale</b> na entrega por aquele índice (passado real, futuro projetado); o <b>"vender por ≥"</b> = o preço bruto de venda cujo líquido empata com esse valor, já descontando corretagem, cartório e IR. ';
+  txt+='<b>O piso que importa é o IPCA</b> (vender por ≥ '+BRL(a.precoMinIPCA)+'): abaixo dele você perde poder de compra. INCC/CDI/renda fixa são réguas de comparação — CDI e renda fixa mostram quanto você teria deixando o dinheiro no banco. ';
   txt+='<span style="color:var(--muted)">'+(temReal?('IPCA e CDI usam a série mensal <b>real</b> do Banco Central'+(fData?' (atualizada em '+fData+')':'')+' até hoje, e a projeção só no que falta; o INCC real vem dos seus boletos. À medida que você paga e os meses passam, o valor fica mais exato. '):'Série real ainda não carregada — usando projeção para tudo. ')+'O IR de ganho incide sobre o custo NOMINAL ('+BRL(a.totalNom)+'), regra da Receita. Valores totais; sua parte é a metade.</span>';
   $('ccNota').innerHTML=txt;
 }
