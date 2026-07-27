@@ -1,0 +1,26 @@
+name: Keep-alive Supabase
+
+# Mantém o projeto Supabase (plano grátis) ativo, evitando a pausa por inatividade.
+# Faz uma leitura leve no banco 1x por dia. Totalmente automático — não exige nenhuma ação.
+
+on:
+  schedule:
+    - cron: '23 9 * * *'     # todo dia ~09:23 UTC (~06:23 de Brasília)
+  workflow_dispatch:          # botão "Run workflow" para rodar na hora, se quiser
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping no Supabase (leitura leve mantém o projeto ativo)
+        run: |
+          set -e
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "apikey: sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf" \
+            "https://aipgtnvflezqnhzbpxam.supabase.co/rest/v1/ocean504_parcelas?select=id&limit=1")
+          echo "Supabase REST respondeu: $CODE"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Ping falhou (esperado 200, recebeu $CODE)"
+            exit 1
+          fi
+          echo "Projeto Supabase ativo ✅"
