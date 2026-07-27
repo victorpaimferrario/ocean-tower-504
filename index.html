@@ -96,6 +96,78 @@ header h1 .num{color:var(--gold)}
 .sim-out .v.extra{color:var(--coral)}
 .sim-out .ccv{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.35}
 .sim-out .ccv b{color:var(--ink);font-weight:600}
+
+/* ===== resumo da análise: pergunta única + placar + corrida + régua ===== */
+.hq-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;align-items:end}
+.hq-f label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);font-weight:600;margin-bottom:6px}
+.hq-big{font-family:'Fraunces',serif;font-size:27px;font-weight:600;color:var(--gold);line-height:1.1}
+.hq-big small{font-size:14px;color:var(--muted);font-weight:400;font-family:'Inter',sans-serif}
+.hq-big2{font-family:'Fraunces',serif;font-size:27px;font-weight:600;color:var(--ocean2);line-height:1.1}
+.hq-f input[type=range]{width:100%;margin-top:9px}
+.hq-note{font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.35}
+.hq-note.warn{color:var(--coral);font-weight:600}
+
+.verd{display:flex;gap:16px;align-items:flex-start;padding:18px 20px;border-radius:12px;
+  border:1px solid;margin-bottom:18px}
+.verd.win{background:var(--green-soft);border-color:var(--green)}
+.verd.lose{background:var(--coral-soft);border-color:var(--coral)}
+.verd-m{font-family:'Fraunces',serif;font-size:30px;line-height:1;font-weight:600;flex-shrink:0}
+.verd.win .verd-m{color:var(--green)} .verd.lose .verd-m{color:var(--coral)}
+.verd h3{font-family:'Fraunces',serif;font-size:21px;font-weight:600;line-height:1.25;
+  margin-bottom:5px;text-wrap:balance}
+.verd p{font-size:13.5px;color:var(--muted);max-width:62ch;line-height:1.5}
+.verd p b{color:var(--ink)}
+
+.board{display:flex;flex-direction:column}
+.match{display:grid;grid-template-columns:120px 1fr 122px;gap:16px;align-items:center;
+  padding:14px 2px;border-bottom:1px solid var(--line)}
+.match:last-child{border-bottom:none}
+.match .who{font-size:12.5px;font-weight:600}
+.match .who small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
+.bars{display:flex;flex-direction:column;gap:5px}
+.barline{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--muted)}
+.barline .bl{width:46px;flex-shrink:0}
+.barline .track{flex:1;height:10px;background:var(--mist);border-radius:5px;overflow:hidden}
+.barline .fill{height:100%;border-radius:5px}
+.barline .amt{width:92px;text-align:right;font-weight:600;color:var(--ink);font-size:12px}
+.match .res{text-align:right;font-family:'Fraunces',serif;font-size:18px;font-weight:600}
+.match .res small{display:block;font-family:'Inter',sans-serif;font-size:10px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+.res.pos{color:var(--green)} .res.neg{color:var(--coral)}
+
+.rg-wrap{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.rg-t{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
+.ruler{position:relative;height:124px;margin:28px 0 6px}
+.ruler-track{position:absolute;top:48px;left:0;right:0;height:13px;border-radius:7px;
+  overflow:hidden;display:flex}
+.zone{height:100%}
+.zone.z1{background:var(--coral-soft)} .zone.z2{background:var(--gold-soft)}
+.zone.z3{background:var(--green-soft)} .zone.z4{background:var(--mist)}
+.tick{position:absolute;top:34px;transform:translateX(-50%);text-align:center;width:92px}
+.tick .bar{width:2px;height:40px;background:var(--muted);margin:0 auto;opacity:.45}
+.tick .lb{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  font-weight:600;margin-top:5px}
+.tick .vl{font-size:11.5px;font-weight:600}
+.mk{position:absolute;top:0;transform:translateX(-50%);text-align:center;width:150px;z-index:3}
+.mk .pill{display:inline-block;background:var(--gold);color:#231a06;font-weight:700;font-size:12.5px;
+  padding:4px 11px;border-radius:999px;white-space:nowrap}
+.mk .stem{width:3px;height:34px;background:var(--gold);margin:2px auto 0;border-radius:2px}
+.zone-key{display:flex;gap:15px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:18px}
+.zone-key span{display:flex;align-items:center;gap:6px}
+.zone-key i{width:12px;height:12px;border-radius:4px;display:block;border:1px solid var(--line)}
+
+details.det{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  margin-top:22px;overflow:hidden}
+details.det>summary{padding:15px 18px;cursor:pointer;font-size:13.5px;font-weight:600;
+  color:var(--muted);list-style:none;min-height:44px;display:flex;align-items:center;gap:9px}
+details.det>summary::-webkit-details-marker{display:none}
+details.det>summary::before{content:'▸';display:inline-block;transition:transform .15s}
+details.det[open]>summary::before{transform:rotate(90deg)}
+details.det>summary:hover{color:var(--ink)}
+.det-body{border-top:1px solid var(--line);padding:16px 14px 4px;background:var(--paper)}
+.det-body>.panel,.det-body>.controls,.det-body>.grid{margin-bottom:14px}
+.chart-box.tall{height:340px}
 .tbl-wrap{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:12px}
 table.pg{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1060px}
 .docchips{display:flex;gap:4px;flex-wrap:wrap}
@@ -164,7 +236,10 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 }
 footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
 footer b{color:var(--ink)}
-@media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}}
+@media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}
+  .hq-row{grid-template-columns:1fr 1fr}.hq-out{grid-column:1/-1}
+  .match{grid-template-columns:1fr;gap:7px}.match .res{text-align:left}
+  .ruler{height:150px}.tick{width:76px}.tick .vl{font-size:10.5px}}
 /* mobile: toque >=44px, fonte 16px (evita zoom do iOS), sliders maiores */
 @media(max-width:760px){
   .wrap{padding:0 13px}
@@ -182,6 +257,16 @@ footer b{color:var(--ink)}
   .sl input[type=range]{height:8px}
   .sl input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
   .sl input[type=range]::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff}
+  .hq-row{grid-template-columns:1fr;gap:18px}
+  .hq-f input[type=range]{height:8px}
+  .hq-f input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
+  .hq-f input[type=range]::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff}
+  .hq-big,.hq-big2{font-size:24px}
+  .verd{flex-direction:column;gap:8px;padding:16px}
+  .verd h3{font-size:18px}
+  .chart-box.tall{height:290px}
+  .barline .amt{width:82px}
+  .zone-key{gap:10px;font-size:11px}
   .docchip{padding:7px 10px;font-size:16px}
   /* tabela de parcelas vira cartoes (sem scroll horizontal) */
   .tbl-wrap{max-height:70vh;border:none;border-radius:0}
@@ -359,6 +444,65 @@ footer b{color:var(--ink)}
   </div>
 
   <div class="tabpane" id="tabAnalise">
+
+  <div class="panel">
+    <h3>Quanto vale o m² do 504 hoje? <span class="badge">a única pergunta</span></h3>
+    <p class="desc">O sistema já sabe tudo que <b>saiu</b> do seu bolso. Para saber se valeu a pena, falta o outro lado: o valor de mercado. Ajuste os dois controles abaixo — todo o resto da análise se recalcula sozinho.</p>
+    <div class="hq-row">
+      <div class="hq-f">
+        <label for="m2mkt">Valor do m² hoje, no mercado</label>
+        <div class="hq-big" id="m2mktV">—</div>
+        <input type="range" id="m2mkt" min="8000" max="25000" step="100" value="10000">
+      </div>
+      <div class="hq-f">
+        <label for="valorizM">Valorização ao ano até a entrega</label>
+        <div class="hq-big" id="valorizV">—</div>
+        <input type="range" id="valorizM" min="0" max="15" step="0.5" value="6">
+      </div>
+      <div class="hq-f hq-out">
+        <label>Venda estimada na entrega</label>
+        <div class="hq-big2" id="vendaEstV">—</div>
+        <div class="hq-note" id="m2Aviso"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="verd" id="rsVerd">
+      <div class="verd-m" id="rsMark">▲</div>
+      <div><h3 id="rsHead">—</h3><p id="rsSub">—</p></div>
+    </div>
+    <div class="board" id="rsBoard"></div>
+  </div>
+
+  <div class="panel">
+    <h3>A corrida, mês a mês <span class="badge" id="rsCorrData">até a entrega</span></h3>
+    <p class="desc">Sua fatia do imóvel — valor de mercado menos o que ainda falta pagar — contra o mesmo dinheiro aplicado em cada índice. Linha cheia é o que já aconteceu; pontilhado é projeção.</p>
+    <div class="chart-box tall"><canvas id="cCorrida"></canvas></div>
+    <div class="card-help">
+      <p class="ch-title">ⓘ por que essa é a comparação justa</p>
+      <p>Antes da entrega você não é dono do apartamento inteiro — é dono do que já pagou. Se saísse hoje (cessão de direitos), receberia o <b>valor de mercado menos o saldo devedor</b>. É isso que a linha dourada mostra. Comparar o valor cheio do imóvel com o seu dinheiro aplicado seria injusto nos primeiros anos, quando você ainda pagou pouco.<br><br>O saldo devedor entra <b>a valor presente</b> (descontado pelo CDI): uma parcela que só vence em 2031 não pesa hoje o mesmo que o valor de face dela. Na entrega o saldo zera, e a linha passa a ser o valor cheio do apartamento.</p>
+    </div>
+
+    <div class="rg-wrap">
+      <p class="rg-t">Onde seu preço cai</p>
+      <p class="desc">Cada marca é o preço mínimo de venda para empatar com um índice, já sem corretagem e IR. À direita do marcador dourado, você ganhou daquele índice.</p>
+      <div class="ruler" id="rsRuler"></div>
+      <div class="zone-key">
+        <span><i style="background:var(--coral-soft)"></i> Prejuízo real</span>
+        <span><i style="background:var(--gold-soft)"></i> Empata a inflação</span>
+        <span><i style="background:var(--green-soft)"></i> Ganha da inflação e da obra</span>
+        <span><i style="background:var(--mist)"></i> Ganha do banco</span>
+      </div>
+      <p class="rg-t" style="margin-top:22px">O mesmo piso, em R$/m²</p>
+      <p class="desc">A régua na unidade em que o mercado fala.</p>
+      <div class="sim-out" id="rsM2"></div>
+    </div>
+  </div>
+
+  <details class="det">
+    <summary>Ver a análise completa — projeções, venda, aluguel, decisão e sensibilidade</summary>
+    <div class="det-body">
   <div class="controls">
     <h2>Projeção, renda fixa e cenário de venda</h2>
     <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
@@ -480,6 +624,8 @@ footer b{color:var(--ink)}
       </div>
     </div>
   </div>
+    </div>
+  </details>
   </div>
 
   <footer>
@@ -559,9 +705,11 @@ const EDITORES=['victorpaim@pasf.com.br','eduardodeabreuls@gmail.com'];
 const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
 
 async function bootstrap(){
-  // cria os gráficos com as duas abas visíveis (senão os da aba oculta nascem 0×0)
+  // cria os gráficos com as duas abas E o "ver detalhes" abertos (senão os ocultos nascem 0×0)
   document.querySelectorAll('.tabpane').forEach(p=>p.classList.add('active'));
+  document.querySelectorAll('details.det').forEach(d=>d.open=true);
   initCharts();
+  document.querySelectorAll('details.det').forEach(d=>d.open=false);
   document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.id==='tabAcomp'));
   const {data:{session}}=await sb.auth.getSession();
   canEdit=!!(session&&session.user&&EDITORES.includes(session.user.email));
@@ -569,6 +717,10 @@ async function bootstrap(){
   sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
   await loadFromDB();
   ['incc','cdi','pctcdi'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
+  mercadoConfirmado=loadMercado();
+  ['m2mkt','valorizM'].forEach(id=>$(id).addEventListener('input',()=>{saveMercado();render();}));
+  document.querySelectorAll('details.det').forEach(d=>d.addEventListener('toggle',()=>{
+    if(d.open)Object.values(charts).forEach(ch=>{try{ch.resize();}catch(e){}});}));
   ['trib','aval','entregaData','corret','custoVenda','irganho','ipca','ifix'].forEach(id=>$(id).addEventListener('change',render));
   ['alug','reajAlug','vac','opex','custoFixo','irAlug','horizonte','valoriz'].forEach(id=>$(id).addEventListener('change',render));
   $('entrega').addEventListener('change',()=>{const cu=$('entrega').value==='custom';$('entregaData').disabled=!cu;if(cu&&!$('entregaData').value)$('entregaData').value='2031-12-01';render();});
@@ -1023,6 +1175,29 @@ function initCharts(){
     options:{maintainAspectRatio:false,layout:{padding:{top:18,right:34}},plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}},
       datalabels:{align:'top',color:c=>c.dataset.borderColor,font:{size:11,weight:'600'},formatter:(v,ctx)=>{const d=ctx.dataset.data;let li=-1;for(let i=0;i<d.length;i++)if(d[i]!=null)li=i;return ctx.dataIndex===li&&v!=null?BRL(v):'';}}},
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
+  // a corrida: minha fatia do imóvel × cada índice, mês a mês (cheio=realizado, tracejado=projeção)
+  const dashFut=ctx=>ctx.p0DataIndex>=(ctx.chart.$iHoje||0)?[6,4]:undefined;
+  const linha=(lb,cor,w)=>({type:'line',label:lb,data:[],borderColor:cor,borderWidth:w||2,
+    fill:false,tension:.2,pointRadius:0,pointHoverRadius:4,segment:{borderDash:dashFut}});
+  charts.corrida=new Chart($('cCorrida'),{plugins:[ChartDataLabels,{id:'hojeLine',
+    afterDraw(ch){const i=ch.$iHoje;if(i==null||!ch.scales.x)return;const x=ch.scales.x.getPixelForValue(i),
+      a=ch.chartArea,g=ch.ctx;g.save();g.strokeStyle='#8CA3A9';g.setLineDash([3,4]);g.lineWidth=1;
+      g.beginPath();g.moveTo(x,a.top);g.lineTo(x,a.bottom);g.stroke();g.setLineDash([]);
+      g.fillStyle='#5C7178';g.font='600 10px Inter';g.fillText('HOJE',x+5,a.top+11);g.restore();}}],
+    data:{datasets:[
+      Object.assign(linha('Minha fatia do imóvel','#C2912E',3.5),{backgroundColor:'rgba(194,145,46,.10)',fill:'origin',order:0}),
+      linha('CDI 100%','#0E4D5C'),linha('Renda fixa','#1C7C8C'),
+      linha('INCC','#9FB7BC'),linha('IPCA','#5C7178')],labels:[]},
+    options:{maintainAspectRatio:false,layout:{padding:{top:20,right:56}},
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}},
+        datalabels:{align:'right',offset:2,color:c=>c.dataset.borderColor,font:{size:10.5,weight:'600'},
+          // no celular os 5 rótulos se atropelam: mostra só no toque (tooltip)
+          formatter:(v,ctx)=>{const d=ctx.dataset.data;
+            return (ctx.chart.width>560&&ctx.dataIndex===d.length-1&&v!=null)?BRL(v):'';}}},
+      scales:{x:{grid:{display:false},ticks:{maxTicksLimit:7,autoSkip:true}},
+        y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+Math.round(v/1000)+'k'}}}}});
 }
 
 function docsByParcela(){const m={};(docs||[]).forEach(d=>{if(d.parcela_id){(m[d.parcela_id]||(m[d.parcela_id]=[])).push(d);}});return m;}
@@ -1073,6 +1248,7 @@ async function relinkDoc(id,newPid){
 }
 
 function render(){
+  syncMercado();          // m² de mercado alimenta o 'valor de venda esperado' antes de qualquer cálculo
   const c=compute(),s=c.s;
   $('vIncc').textContent=PCT(s.incc*100,1);
   $('vCdi').textContent=PCT(s.cdi*100,1);$('vPct').textContent=Math.round(s.pctcdi*100)+'%';
@@ -1088,7 +1264,7 @@ function render(){
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='real/projetado (com tudo): '+BRL(c.allin/AREA)+'/m²';
   {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderTable(c);renderCharts(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
+  renderAlert();renderTable(c);renderCharts(c);renderResumo(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
 }
 
 function renderAlert(){
@@ -1268,6 +1444,138 @@ function renderCorrigido(c){
   txt+='<b>O piso que importa é o IPCA</b> (vender por ≥ '+BRL(a.precoMinIPCA)+'): abaixo dele você perde poder de compra. INCC/CDI/renda fixa são réguas de comparação — CDI e renda fixa mostram quanto você teria deixando o dinheiro no banco. ';
   txt+='<span style="color:var(--muted)">'+(temReal?('IPCA e CDI usam a série mensal <b>real</b> do Banco Central'+(fData?' (atualizada em '+fData+')':'')+' até hoje, e a projeção só no que falta; o INCC real vem dos seus boletos. À medida que você paga e os meses passam, o valor fica mais exato. '):'Série real ainda não carregada — usando projeção para tudo. ')+'O IR de ganho incide sobre o custo NOMINAL ('+BRL(a.totalNom)+'), regra da Receita. Valores totais; sua parte é a metade.</span>';
   $('ccNota').innerHTML=txt;
+}
+
+/* ===== resumo: pergunta única (m² de mercado) → placar → corrida → régua ===== */
+const MKKEY='ocean504_mercado';
+function mercadoParams(){return {m2:+($('m2mkt').value||10000), vz:(+($('valorizM').value||0))/100};}
+function loadMercado(){try{const j=JSON.parse(localStorage.getItem(MKKEY)||'null');
+  if(j&&j.m2){$('m2mkt').value=j.m2;$('valorizM').value=j.vz;return true;}}catch(e){}return false;}
+function saveMercado(){try{localStorage.setItem(MKKEY,JSON.stringify(
+  {m2:+$('m2mkt').value,vz:+$('valorizM').value}));}catch(e){}mercadoConfirmado=true;}
+let mercadoConfirmado=false;
+// preço de venda esperado = m² de mercado × área, valorizado até a entrega (alimenta toda a análise)
+function syncMercado(){
+  const p=mercadoParams(), ENT=getEntrega();
+  const vend=AREA*p.m2*Math.pow(1+p.vz,Math.max(0,yearsBetween(new Date(),ENT)));
+  $('aval').value=Math.round(vend);
+  $('m2mktV').innerHTML=BRL(p.m2)+'<small> / m²</small>';
+  $('valorizV').innerHTML=(p.vz*100).toLocaleString('pt-BR',{minimumFractionDigits:1})+'<small>% a.a.</small>';
+  $('vendaEstV').textContent=BRL(vend);
+  const av=$('m2Aviso');
+  if(mercadoConfirmado){av.className='hq-note';av.innerHTML=BRL(vend/AREA)+'/m² na entrega · sua parte: <b>'+BRL(vend*PV)+'</b>';}
+  else{av.className='hq-note warn';av.textContent='⚠ Premissa ainda não conferida — ajuste para o m² real de mercado.';}
+  return vend;
+}
+// série mensal: fator acumulado real (BCB) até hoje + projeção depois; um ponto por mês
+function serieCorrida(c){
+  const s=c.s, ENT=getEntrega(), HOJE=new Date(), isento=s.trib!=='trib';
+  const ipcaA=(parseFloat($('ipca').value)||0)/100, inccA=Math.pow(1+c.imP,12)-1;
+  const mensal=a=>Math.pow(1+a,1/12)-1;
+  // datas do app vêm de 'YYYY-MM-DD' (UTC) e de getEntrega() (local) — normaliza pelo dia UTC
+  const norm=t=>new Date(t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate(),12);
+  const ini=norm(T0), fimD=norm(ENT), hoje=norm(HOJE);
+  const meses=[]; let d=new Date(ini.getFullYear(),ini.getMonth(),1,12);
+  const fim=new Date(fimD.getFullYear(),fimD.getMonth(),1,12);
+  while(d<=fim){meses.push(new Date(d));d.setMonth(d.getMonth()+1);}
+  const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const key=t=>t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+  const fator=(serie,anual,scale)=>{const G=[1];
+    for(let i=1;i<meses.length;i++){let r=null;
+      if(serie&&meses[i-1]<=hoje&&serie[key(meses[i-1])]!=null)r=(serie[key(meses[i-1])]/100)*(scale||1);
+      if(r==null)r=mensal(anual);
+      G.push(G[i-1]*(1+r));}
+    return G;};
+  const Gi=fator(SERIES.ipca,ipcaA,1), Gc=fator(SERIES.cdi,s.cdi,1),
+        Gr=fator(SERIES.cdi,s.cdi*s.pctcdi,s.pctcdi), Gn=fator(null,inccA,1);
+  const idx=t=>Math.max(0,Math.min(meses.length-1,
+    (t.getFullYear()-ini.getFullYear())*12+(t.getMonth()-ini.getMonth())));
+  const des=[];
+  state.itens.forEach(r=>{
+    if(r.tipo==='aporte'){if(r.valor_pago!=null)des.push({d:norm(flowDate(r)),v:num(r.valor_pago),parc:true});return;}
+    const v=r.valor_pago!=null?num(r.valor_pago):r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
+    const dd=(r.valor_pago!=null&&r.data_pagamento)?new Date(r.data_pagamento):new Date(r.vencimento);
+    des.push({d:norm(dd),v:v,parc:true});
+  });
+  des.push({d:fimD,v:ENTRADA+AMB,parc:false});
+  // fator na data exata do desembolso (interpola dentro do mês) — assim o fim da linha
+  // bate com os cards de "desembolso corrigido", que contam dia a dia
+  const noDia=(G,x)=>{const i=x.i, prox=Math.min(i+1,G.length-1);
+    const taxaMes=i<G.length-1?G[prox]/G[i]:1;
+    const dm=new Date(x.d.getFullYear(),x.d.getMonth()+1,0).getDate();
+    return G[i]*Math.pow(taxaMes,(x.d.getDate()-1)/dm);};
+  des.forEach(x=>{x.i=idx(x.d);x.bi=noDia(Gi,x);x.bn=noDia(Gn,x);x.bc=noDia(Gc,x);x.br=noDia(Gr,x);});
+  const p=mercadoParams(), out={ipca:[],incc:[],cdi:[],rf:[],eq:[],labels:[],iHoje:idx(hoje)};
+  for(let j=0;j<meses.length;j++){
+    let a=0,b=0,cc=0,rf=0,saldo=0;
+    for(let k=0;k<des.length;k++){const x=des[k];
+      if(x.i<=j){
+        a+=x.v*Math.max(1,Gi[j]/x.bi); b+=x.v*Math.max(1,Gn[j]/x.bn); cc+=x.v*Math.max(1,Gc[j]/x.bc);
+        const bruto=x.v*Math.max(1,Gr[j]/x.br), anos=Math.max(0,yearsBetween(x.d,meses[j]));
+        rf+=isento?bruto:x.v+(bruto-x.v)*(1-aliqIR(anos));
+      } else if(x.parc){ // saldo devedor a valor presente: dívida de 2031 não vale o mesmo hoje
+        saldo+=x.v/Math.pow(1+s.cdi,Math.max(0,yearsBetween(meses[j],x.d)));}
+    }
+    out.ipca.push(a);out.incc.push(b);out.cdi.push(cc);out.rf.push(rf);
+    out.eq.push(AREA*p.m2*Math.pow(1+p.vz,yearsBetween(hoje,meses[j]))-saldo);
+    out.labels.push(MES[meses[j].getMonth()]+'/'+String(meses[j].getFullYear()).slice(2));
+  }
+  return out;
+}
+const IDXR=[{k:'corrIPCA',pk:'precoMinIPCA',nome:'IPCA',desc:'inflação',cor:'#5C7178'},
+            {k:'corrINCC',pk:'precoMinINCC',nome:'INCC',desc:'custo da obra',cor:'#9FB7BC'},
+            {k:'vfRF',    pk:'precoMinRF',  nome:'Renda fixa',desc:'% do CDI, líquido',cor:'#1C7C8C'},
+            {k:'corrCDI', pk:'precoMinCDI', nome:'CDI',desc:'100%, bruto',cor:'#0E4D5C'}];
+function renderResumo(c){
+  const a=analisar(c), liq=a.liquido||0, temPreco=a.venda>0;
+  $('rsCorrData').textContent='até '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+  // --- veredito ---
+  const dIpca=liq-a.corrIPCA, ganhaIpca=dIpca>=0, ganhaRF=liq>=a.vfRF;
+  const box=$('rsVerd'); box.className='verd '+(ganhaIpca?'win':'lose');
+  $('rsMark').textContent=ganhaIpca?'▲':'▼';
+  let h,sub;
+  if(!temPreco){h='Defina o m² de mercado para ver o veredito.';sub='Sem o valor de mercado, dá para saber quanto você gastou — mas não se valeu a pena.';}
+  else if(ganhaRF){h='Valeu a pena: o 504 bate a inflação <em>e</em> o banco.';
+    sub='Vendendo a <b>'+BRL(a.venda)+'</b> na entrega sobram <b>'+BRL(liq)+'</b> limpos — <b>'+BRL(liq-a.vfRF)+'</b> a mais do que esse dinheiro renderia na renda fixa.';}
+  else if(ganhaIpca){h='Protegeu seu dinheiro, mas ainda perde do banco.';
+    sub='Os <b>'+BRL(liq)+'</b> líquidos superam a inflação em <b>'+BRL(dIpca)+'</b>, mas ficam <b>'+BRL(a.vfRF-liq)+'</b> abaixo da renda fixa. Para empatar, o m² precisa chegar a <b>'+BRL(a.precoMinRF/AREA)+'/m²</b> na entrega.';}
+  else{h='Nesse preço, você perde poder de compra.';
+    sub='O líquido de <b>'+BRL(liq)+'</b> fica <b>'+BRL(-dIpca)+'</b> abaixo da inflação. Para empatar, o m² precisa valer <b>'+BRL(a.precoMinIPCA/AREA)+'/m²</b> na entrega.';}
+  $('rsHead').innerHTML=h; $('rsSub').innerHTML=sub;
+  // --- placar ---
+  const maior=Math.max(liq,a.corrCDI)*1.02||1;
+  $('rsBoard').innerHTML=IDXR.map(x=>{const alvo=a[x.k],dd=liq-alvo,pos=dd>=0;
+    return '<div class="match"><div class="who">'+x.nome+'<small>'+x.desc+'</small></div><div class="bars">'+
+      '<div class="barline"><span class="bl">imóvel</span><span class="track"><span class="fill" style="width:'+
+        Math.max(0,liq/maior*100)+'%;background:#C2912E"></span></span><span class="amt">'+BRL(liq)+'</span></div>'+
+      '<div class="barline"><span class="bl">índice</span><span class="track"><span class="fill" style="width:'+
+        (alvo/maior*100)+'%;background:'+x.cor+';opacity:.8"></span></span><span class="amt">'+BRL(alvo)+'</span></div>'+
+      '</div><div class="res '+(pos?'pos':'neg')+'">'+(pos?'+':'−')+BRL(Math.abs(dd))+
+      '<small>'+(pos?'ganhou':'perdeu')+'</small></div></div>';}).join('');
+  // --- corrida ---
+  const S=serieCorrida(c), ch=charts.corrida;
+  if(ch){ch.$iHoje=S.iHoje;ch.data.labels=S.labels;
+    ch.data.datasets[0].data=S.eq;ch.data.datasets[1].data=S.cdi;
+    ch.data.datasets[2].data=S.rf;ch.data.datasets[3].data=S.incc;ch.data.datasets[4].data=S.ipca;
+    ch.update();}
+  // --- régua ---
+  const vals=IDXR.map(x=>a[x.pk]).concat(temPreco?[a.venda]:[]);
+  const lo=Math.min.apply(null,vals)*0.88, hi=Math.max.apply(null,vals)*1.10;
+  const P=v=>Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100));
+  const pI=P(a.precoMinIPCA),pN=P(a.precoMinINCC),pR=P(a.precoMinRF);
+  let r='<div class="ruler-track"><div class="zone z1" style="width:'+pI+'%"></div>'+
+    '<div class="zone z2" style="width:'+(pN-pI)+'%"></div>'+
+    '<div class="zone z3" style="width:'+(pR-pN)+'%"></div>'+
+    '<div class="zone z4" style="width:'+(100-pR)+'%"></div></div>';
+  IDXR.forEach(x=>{r+='<div class="tick" style="left:'+P(a[x.pk])+'%"><div class="bar"></div>'+
+    '<div class="lb">'+x.nome+'</div><div class="vl">'+BRL(a[x.pk])+'</div></div>';});
+  if(temPreco)r+='<div class="mk" style="left:'+P(a.venda)+'%"><div class="pill">seu preço · '+
+    BRL(a.venda)+'</div><div class="stem"></div></div>';
+  $('rsRuler').innerHTML=r;
+  $('rsM2').innerHTML=IDXR.map(x=>{const pm=a[x.pk]/AREA, ok=temPreco&&a.venda>=a[x.pk];
+    return '<div class="b"><div class="l">empatar '+x.nome+'</div><div class="v"'+
+      (ok?' style="color:var(--green)"':'')+'>'+BRL(pm)+'</div>'+
+      '<div class="ccv">por m² na entrega</div></div>';}).join('');
 }
 function renderCusto(c){
   const a=analisar(c);
