@@ -396,6 +396,18 @@ footer b{color:var(--ink)}
     </div>
 
   <div class="panel vpl-panel">
+    <h3>Seu desembolso corrigido na entrega <span class="badge" id="ccData"></span></h3>
+    <p class="desc">Quanto o que você desembolsou (parcelas + aportes + ITBI/registro + ambientação) vale na entrega, corrigindo <b>cada saída da sua data</b> por 4 índices. É a base do <b>valor mínimo de venda</b> — o piso pra não sair no prejuízo.</p>
+    <div class="sim-out">
+      <div class="b"><div class="l">IPCA (inflação)</div><div class="v" id="ccIpca">—</div></div>
+      <div class="b"><div class="l">INCC (obra)</div><div class="v" id="ccIncc">—</div></div>
+      <div class="b"><div class="l">CDI (100%, bruto)</div><div class="v" id="ccCdi">—</div></div>
+      <div class="b"><div class="l">Renda fixa (% CDI, líq.)</div><div class="v" id="ccRf">—</div></div>
+    </div>
+    <p class="desc" id="ccNota" style="margin-top:10px;font-size:13px"></p>
+  </div>
+
+  <div class="panel vpl-panel">
     <h3>Vale a pena vender na entrega? <span class="badge" id="cdData">entrega jul/2031</span></h3>
     <p class="desc">O que você desembolsa contra o que esse mesmo dinheiro renderia na renda fixa — e, se vender, quanto sobra líquido depois de corretagem, cartório e IR de ganho de capital.</p>
     <div class="sim-out">
@@ -1072,7 +1084,7 @@ function render(){
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='real/projetado (com tudo): '+BRL(c.allin/AREA)+'/m²';
   {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderTable(c);renderCharts(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
+  renderAlert();renderTable(c);renderCharts(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
 }
 
 function renderAlert(){
@@ -1154,35 +1166,36 @@ function analisar(c,vendaOverride,entregaOverride){
   const s=c.s, ENT=entregaOverride||getEntrega(), anosE=Math.max(0.01,yearsBetween(T0,ENT));
   const taxa=s.cdi*s.pctcdi, isento=s.trib!=='trib';
   const aplica=(val,d)=>{const a=Math.max(0,yearsBetween(d,ENT));const vf=val*Math.pow(1+taxa,a);if(isento)return vf;const g=vf-val;return val+g*(1-aliqIR(a));};
-  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0;const flows=[];
+  const ipca=(parseFloat($('ipca').value)||0)/100, inccA=Math.pow(1+c.imP,12)-1;
+  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0,corrIPCA=0,corrINCC=0,corrCDI=0;const flows=[];
+  // corrige cada desembolso da sua data até a entrega, por 3 índices (renda fixa = vfRF, líq. de IR)
+  const corr=(val,d)=>{const a=Math.max(0,yearsBetween(d,ENT));corrIPCA+=val*Math.pow(1+ipca,a);corrINCC+=val*Math.pow(1+inccA,a);corrCDI+=val*Math.pow(1+s.cdi,a);};
   state.itens.forEach(r=>{
-    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;vfRF+=aplica(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});}return;}
+    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;vfRF+=aplica(val,d);corr(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});}return;}
     const val=r.valor_pago!=null?num(r.valor_pago):r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
     const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
-    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfRF+=aplica(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
+    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfRF+=aplica(val,d);corr(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });
-  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,ENT);flows.push({t:anosE,cf:-(ENTRADA+AMB)});
+  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,ENT);corr(ENTRADA+AMB,ENT);flows.push({t:anosE,cf:-(ENTRADA+AMB)});
   const valorHoje=M2BASE*AREA;
   // --- cenário de saída (revenda) ---
   const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
   const corret=(parseFloat($('corret').value)||0)/100;
   const custoVenda=parseFloat($('custoVenda').value)||0;
   const isentoG=$('irganho').value==='isento';
-  const ipca=(parseFloat($('ipca').value)||0)/100;
   const liquidoDe=(P)=>{if(!P)return 0;const apos=P*(1-corret)-custoVenda;const ganho=apos-totalNom;const ir=isentoG?0:0.15*Math.max(0,ganho);return apos-ir;};
-  // preço de venda bruto p/ o líquido empatar com a renda fixa
-  let precoSugerido;
-  const semIR=(vfRF+custoVenda)/(1-corret);
-  if(isentoG){precoSugerido=semIR;}
-  else{const Atgt=(vfRF-0.15*totalNom)/0.85;const comIR=(Atgt+custoVenda)/(1-corret);
-    precoSugerido=(comIR*(1-corret)-custoVenda>totalNom)?comIR:semIR;}
+  // preço de venda bruto p/ o líquido cobrir um alvo (IR de ganho incide sobre o custo NOMINAL de aquisição)
+  const precoParaLiquido=(alvo)=>{const si=(alvo+custoVenda)/(1-corret);if(isentoG)return si;const A=(alvo-0.15*totalNom)/0.85;const ci=(A+custoVenda)/(1-corret);return (ci*(1-corret)-custoVenda>totalNom)?ci:si;};
+  const precoSugerido=precoParaLiquido(vfRF);
+  const precoMinIPCA=precoParaLiquido(corrIPCA);
   const liquido=liquidoDe(venda), custosSaida=venda?(venda-liquido):0;
   let tir=null,moic=null,tirReal=null;
   if(venda){const f2=flows.concat([{t:anosE,cf:liquido}]);tir=irr(f2);moic=liquido/totalNom;if(tir!=null)tirReal=(1+tir)/(1+ipca)-1;}
   return {ENT,anosE,taxa,isento,pct:s.pctcdi,totalNom,vfRF,nominalParc,pagoOuProj,aportesTot,
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
     breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj,
-    venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows};
+    venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows,
+    corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA};
 }
 
 function analisarRenda(a){
@@ -1209,6 +1222,18 @@ function analisarRenda(a){
   return {ok:true,H,Pent,alug,vac,irA,liq1,yieldB,cap,yieldL,coc,pay,tir,tirReal,Pterm,liqTerm,moic,val};
 }
 
+function renderCorrigido(c){
+  const a=analisar(c);
+  $('ccData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+  $('ccIpca').textContent=BRL(a.corrIPCA);
+  $('ccIncc').textContent=BRL(a.corrINCC);
+  $('ccCdi').textContent=BRL(a.corrCDI);
+  $('ccRf').textContent=BRL(a.vfRF);
+  let txt='Você desembolsou <b>'+BRL(a.totalNom)+'</b> (nominal). Trazido para a entrega: IPCA ('+PCT(a.ipca*100,1)+') → <b>'+BRL(a.corrIPCA)+'</b> · INCC ('+PCT(a.inccA*100,1)+') → <b>'+BRL(a.corrINCC)+'</b> · CDI ('+PCT(c.s.cdi*100,1)+') → <b>'+BRL(a.corrCDI)+'</b> · renda fixa → <b>'+BRL(a.vfRF)+'</b>. ';
+  txt+='<b>Para não perder em termos reais (IPCA), venda por ≥ '+BRL(a.precoMinIPCA)+'</b> — aí o líquido cobre '+BRL(a.corrIPCA)+', já descontando corretagem, cartório e IR de ganho. ';
+  txt+='<span style="color:var(--muted)">Atenção: o IR de ganho incide sobre o custo NOMINAL ('+BRL(a.totalNom)+'), não o corrigido — regra da Receita. Valores totais; sua parte é a metade.</span>';
+  $('ccNota').innerHTML=txt;
+}
 function renderCusto(c){
   const a=analisar(c);
   let comp='<b>Sai do bolso:</b> nominal '+BRL(a.nominalParc)+' + INCC '+BRL(a.correcao);
