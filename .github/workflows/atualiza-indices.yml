@@ -1,0 +1,58 @@
+name: Atualiza indices (IPCA/CDI)
+
+# Puxa as series mensais REAIS do Banco Central (SGS) e grava em indices.json.
+# O painel usa esses valores para corrigir cada desembolso pelo indice REALIZADO
+# de cada mes (passado) e pela projecao (slider) so no que falta ate a entrega.
+#   IPCA  -> serie 433  (variacao mensal, % a.m.)
+#   CDI   -> serie 4391 (CDI acumulado no mes, % a.m.)
+# Totalmente automatico. Roda todo dia 5 (mes anterior ja publicado) e sob demanda.
+
+on:
+  schedule:
+    - cron: '30 9 5 * *'      # dia 5, ~09:30 UTC (~06:30 Brasilia)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Buscar IPCA e CDI no BCB e gravar indices.json
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, datetime
+
+          def sgs(cod):
+              url=("https://api.bcb.gov.br/dados/serie/bcdata.sgs.%d/dados"
+                   "?formato=json&dataInicial=01/06/2026" % cod)
+              req=urllib.request.Request(url, headers={"User-Agent":"ocean504-bot"})
+              with urllib.request.urlopen(req, timeout=40) as r:
+                  data=json.load(r)
+              out={}
+              for it in data:
+                  dd,mm,yy=it["data"].split("/")          # dd/mm/yyyy
+                  out["%s-%s"%(yy,mm)]=float(str(it["valor"]).replace(",","."))
+              return out
+
+          res={
+            "atualizado_em": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "fonte": "Banco Central (SGS): IPCA=433, CDI acumulado no mes=4391 (% a.m.)",
+            "ipca": sgs(433),
+            "cdi":  sgs(4391),
+          }
+          with open("indices.json","w",encoding="utf-8") as f:
+              json.dump(res, f, ensure_ascii=False, indent=2)
+          print("IPCA meses:", len(res["ipca"]), "| CDI meses:", len(res["cdi"]))
+          PY
+
+      - name: Commitar se mudou
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add indices.json
+          git diff --staged --quiet || git commit -m "Atualiza indices IPCA/CDI - $(date -u +%Y-%m-%d)"
+          git push

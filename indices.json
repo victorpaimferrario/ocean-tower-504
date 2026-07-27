@@ -1,0 +1,11 @@
+{
+  "atualizado_em": "2026-07-27T18:15:35Z",
+  "fonte": "Banco Central (SGS): IPCA=433, CDI acumulado no mes=4391 (% a.m.)",
+  "ipca": {
+    "2026-06": 0.16
+  },
+  "cdi": {
+    "2026-06": 1.12,
+    "2026-07": 0.95
+  }
+}

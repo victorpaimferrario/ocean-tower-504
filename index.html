@@ -397,7 +397,7 @@ footer b{color:var(--ink)}
 
   <div class="panel vpl-panel">
     <h3>Seu desembolso corrigido na entrega <span class="badge" id="ccData"></span></h3>
-    <p class="desc">Quanto o que você desembolsou (parcelas + aportes + ITBI/registro + ambientação) vale na entrega, corrigindo <b>cada saída da sua data</b> por 4 índices. É a base do <b>valor mínimo de venda</b> — o piso pra não sair no prejuízo.</p>
+    <p class="desc">Quanto o que você desembolsou (parcelas + aportes + ITBI/registro + ambientação) vale na entrega, corrigindo <b>cada saída da sua data</b> por 4 índices — <b>índice real (Banco Central) no passado, projeção só no futuro</b>. É a base do <b>valor mínimo de venda</b>: o piso pra não sair no prejuízo.</p>
     <div class="sim-out">
       <div class="b"><div class="l">IPCA (inflação)</div><div class="v" id="ccIpca">—</div></div>
       <div class="b"><div class="l">INCC (obra)</div><div class="v" id="ccIncc">—</div></div>
@@ -546,6 +546,7 @@ function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).pad
   return a;}
 
 let state={itens:[]},charts={},canEdit=false,docs=[],currentEmail=null,parcelaFoco=null;
+let SERIES={ipca:{},cdi:{}};  // series mensais REAIS do Banco Central (indices.json); passado real, futuro projetado
 const BUCKET='ocean504-anexos';
 const CAT_LABEL={boleto:'Boleto',pix_socios:'Pix Paim para Duduzinho',comprovante_pago:'Pagamento do Boleto',comprovante:'Comprovante',contrato:'Contrato',memorial:'Memorial',matricula:'Matrícula',analise:'Análise',outro:'Outro'};
 const CAT_ICON={boleto:'📄',pix_socios:'💸',comprovante_pago:'✅',comprovante:'🧾',contrato:'📜',memorial:'📐',matricula:'🏷️',analise:'📊',outro:'📎'};
@@ -588,6 +589,7 @@ async function bootstrap(){
   fillParcelaSelects();
   await loadDocs();
   try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (Selic meta): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
+  try{const ri=await fetch('indices.json?'+Date.now());if(ri.ok){const j=await ri.json();if(j&&j.ipca)SERIES={ipca:j.ipca||{},cdi:j.cdi||{},atualizado_em:j.atualizado_em};}}catch(e){}
   $('stamp').textContent='🟢 dados ao vivo (Supabase)';
   updateAuthUI();
   render();
@@ -1155,6 +1157,20 @@ function renderCharts(c){
 }
 
 function yearsBetween(a,b){return (b-a)/(365.25*24*3600*1000);}
+function mesesEntre(a,b){return Math.max(0,(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth()));}
+// fator acumulado do índice REAL (série mensal do BCB) do mês de `d` até o mês anterior a `ate`.
+// scale escala a taxa mensal (ex.: %CDI da renda fixa). Se não houver série, retorna 1 (cai na projeção).
+function fatorReal(serie,d,ate,scale){
+  scale=(scale==null)?1:scale; if(!serie)return 1;
+  let f=1,y=d.getFullYear(),m=d.getMonth()+1,g=0;
+  const ya=ate.getFullYear(),ma=ate.getMonth()+1;
+  while((y<ya||(y===ya&&m<ma))&&g++<600){
+    const v=serie[y+'-'+String(m).padStart(2,'0')];
+    if(v!=null)f*=(1+(v/100)*scale);
+    if(++m>12){m=1;y++;}
+  }
+  return f;
+}
 function flowDate(r){const d=r.data_pagamento||r.vencimento;return d?new Date(d):T0;}
 function npv(rate,flows){return flows.reduce((s,f)=>s+f.cf/Math.pow(1+rate,f.t),0);}
 function irr(flows){let lo=-0.9,hi=2,fl=npv(lo,flows),fh=npv(hi,flows);
@@ -1165,18 +1181,28 @@ function irr(flows){let lo=-0.9,hi=2,fl=npv(lo,flows),fh=npv(hi,flows);
 function analisar(c,vendaOverride,entregaOverride){
   const s=c.s, ENT=entregaOverride||getEntrega(), anosE=Math.max(0.01,yearsBetween(T0,ENT));
   const taxa=s.cdi*s.pctcdi, isento=s.trib!=='trib';
-  const aplica=(val,d)=>{const a=Math.max(0,yearsBetween(d,ENT));const vf=val*Math.pow(1+taxa,a);if(isento)return vf;const g=vf-val;return val+g*(1-aliqIR(a));};
+  const HOJE=new Date();
   const ipca=(parseFloat($('ipca').value)||0)/100, inccA=Math.pow(1+c.imP,12)-1;
-  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0,corrIPCA=0,corrINCC=0,corrCDI=0;const flows=[];
-  // corrige cada desembolso da sua data até a entrega, por 3 índices (renda fixa = vfRF, líq. de IR)
-  const corr=(val,d)=>{const a=Math.max(0,yearsBetween(d,ENT));corrIPCA+=val*Math.pow(1+ipca,a);corrINCC+=val*Math.pow(1+inccA,a);corrCDI+=val*Math.pow(1+s.cdi,a);};
+  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0,corrIPCA=0,corrINCC=0,corrCDI=0,realizado=0,projetado=0;const flows=[];
+  // corrige cada desembolso: índice REAL (BCB) da data até hoje + PROJEÇÃO (slider) de hoje até a entrega.
+  // renda fixa (vfRF)=CDI×%CDI líq. de IR · CDI=100% bruto · IPCA/INCC=correção pura. INCC real=boletos (taxa observada).
+  const acumula=(val,d)=>{
+    const inicioProj=(d>HOJE)?d:HOJE, af=Math.max(0,yearsBetween(inicioProj,ENT));
+    if(d<HOJE){realizado+=val;}else{projetado+=val;}
+    corrIPCA+=val*fatorReal(SERIES.ipca,d,HOJE)*Math.pow(1+ipca,af);
+    corrCDI +=val*fatorReal(SERIES.cdi ,d,HOJE)*Math.pow(1+s.cdi,af);
+    corrINCC+=val*Math.pow(1+c.imP,mesesEntre(d,HOJE))*Math.pow(1+inccA,af);
+    const rfBruto=val*fatorReal(SERIES.cdi,d,HOJE,s.pctcdi)*Math.pow(1+taxa,af);
+    const anosTot=Math.max(0,yearsBetween(d,ENT));
+    vfRF+=isento?rfBruto:val+(rfBruto-val)*(1-aliqIR(anosTot));
+  };
   state.itens.forEach(r=>{
-    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;vfRF+=aplica(val,d);corr(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});}return;}
+    if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});}return;}
     const val=r.valor_pago!=null?num(r.valor_pago):r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
     const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
-    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;vfRF+=aplica(val,d);corr(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
+    nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });
-  totalNom+=ENTRADA+AMB;vfRF+=aplica(ENTRADA+AMB,ENT);corr(ENTRADA+AMB,ENT);flows.push({t:anosE,cf:-(ENTRADA+AMB)});
+  totalNom+=ENTRADA+AMB;acumula(ENTRADA+AMB,ENT);flows.push({t:anosE,cf:-(ENTRADA+AMB)});
   const valorHoje=M2BASE*AREA;
   // --- cenário de saída (revenda) ---
   const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
@@ -1195,7 +1221,7 @@ function analisar(c,vendaOverride,entregaOverride){
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
     breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj,
     venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows,
-    corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA};
+    corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA,realizado,projetado};
 }
 
 function analisarRenda(a){
@@ -1229,9 +1255,11 @@ function renderCorrigido(c){
   $('ccIncc').textContent=BRL(a.corrINCC);
   $('ccCdi').textContent=BRL(a.corrCDI);
   $('ccRf').textContent=BRL(a.vfRF);
-  let txt='Você desembolsou <b>'+BRL(a.totalNom)+'</b> (nominal). Trazido para a entrega: IPCA ('+PCT(a.ipca*100,1)+') → <b>'+BRL(a.corrIPCA)+'</b> · INCC ('+PCT(a.inccA*100,1)+') → <b>'+BRL(a.corrINCC)+'</b> · CDI ('+PCT(c.s.cdi*100,1)+') → <b>'+BRL(a.corrCDI)+'</b> · renda fixa → <b>'+BRL(a.vfRF)+'</b>. ';
-  txt+='<b>Para não perder em termos reais (IPCA), venda por ≥ '+BRL(a.precoMinIPCA)+'</b> — aí o líquido cobre '+BRL(a.corrIPCA)+', já descontando corretagem, cartório e IR de ganho. ';
-  txt+='<span style="color:var(--muted)">Atenção: o IR de ganho incide sobre o custo NOMINAL ('+BRL(a.totalNom)+'), não o corrigido — regra da Receita. Valores totais; sua parte é a metade.</span>';
+  const temReal=Object.keys(SERIES.ipca||{}).length>0;
+  const fData=SERIES.atualizado_em?new Date(SERIES.atualizado_em).toLocaleDateString('pt-BR'):null;
+  let txt='Você desembolsou <b>'+BRL(a.totalNom)+'</b> (nominal). Trazido para a entrega — <b>passado por índice real, futuro projetado</b>: IPCA → <b>'+BRL(a.corrIPCA)+'</b> · INCC → <b>'+BRL(a.corrINCC)+'</b> · CDI 100% → <b>'+BRL(a.corrCDI)+'</b> · renda fixa líq. → <b>'+BRL(a.vfRF)+'</b>. ';
+  txt+='<b>Piso para não perder poder de compra (IPCA): venda por ≥ '+BRL(a.precoMinIPCA)+'</b> — aí o líquido cobre '+BRL(a.corrIPCA)+', já descontando corretagem, cartório e IR de ganho. ';
+  txt+='<span style="color:var(--muted)">'+(temReal?('IPCA e CDI usam a série mensal <b>real</b> do Banco Central'+(fData?' (atualizada em '+fData+')':'')+' até hoje, e a projeção só no que falta; o INCC real vem dos seus boletos. À medida que você paga e os meses passam, o valor fica mais exato. '):'Série real ainda não carregada — usando projeção para tudo. ')+'O IR de ganho incide sobre o custo NOMINAL ('+BRL(a.totalNom)+'), regra da Receita. Valores totais; sua parte é a metade.</span>';
   $('ccNota').innerHTML=txt;
 }
 function renderCusto(c){
