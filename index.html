@@ -766,7 +766,7 @@ async function bootstrap(){
   sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
   await loadFromDB();
   ['incc','cdi','pctcdi'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
-  mercadoConfirmado=loadMercado();
+  mercadoConfirmado=loadMercadoLocal();   // cache: abre rápido; o banco manda logo abaixo
   ['m2mkt','valorizM'].forEach(id=>$(id).addEventListener('input',()=>{saveMercado();render();}));
   document.querySelectorAll('details.det').forEach(d=>d.addEventListener('toggle',()=>{
     if(d.open)Object.values(charts).forEach(ch=>{try{ch.resize();}catch(e){}});}));
@@ -793,6 +793,7 @@ async function bootstrap(){
   await loadDocs();
   try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (Selic meta): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
   try{const ri=await fetch('indices.json?'+Date.now());if(ri.ok){const j=await ri.json();if(j&&j.ipca)SERIES={ipca:j.ipca||{},cdi:j.cdi||{},atualizado_em:j.atualizado_em};}}catch(e){}
+  if(await loadMercadoDB())mercadoConfirmado=true;   // premissa do banco vence o cache local
   $('stamp').textContent='🟢 dados ao vivo (Supabase)';
   updateAuthUI();
   render();
@@ -1302,7 +1303,11 @@ function render(){
   $('vIncc').textContent=PCT(s.incc*100,1);
   $('vCdi').textContent=PCT(s.cdi*100,1);$('vPct').textContent=Math.round(s.pctcdi*100)+'%';
   if(c.obs.anual!=null){$('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> (média de '+c.obs.nObs+' parcela'+(c.obs.nObs>1?'s':'')+' paga'+(c.obs.nObs>1?'s':'')+')'+($('useObs').checked?' — em uso na projeção':' — slider em uso');}
-  else $('obsLine').innerHTML='INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)';
+  else{const np=state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago!=null).length;
+    // já pode haver parcela paga sem taxa mensurável: a 1ª vence no mês-base (n=0)
+    $('obsLine').innerHTML=np?'INCC observado: <b>—</b> ('+np+' parcela'+(np>1?'s':'')+' paga'+(np>1?'s':'')+
+      ', mas ainda sem correção a medir — a 1ª vence no mês-base. Usando o slider.)'
+      :'INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)';}
   $('slIncc').classList.toggle('muted',$('useObs').checked&&c.obs.mensal!=null);
   const npagas=c.npagas;
   $('kContrato').textContent=BRL(c.baseTotal);
@@ -1496,13 +1501,35 @@ function renderCorrigido(c){
 }
 
 /* ===== resumo: pergunta única (m² de mercado) → placar → corrida → régua ===== */
-const MKKEY='ocean504_mercado';
+// A premissa de mercado é COMPARTILHADA (Supabase) — os dois sócios precisam ver o mesmo
+// número, senão cada um analisa um negócio diferente. localStorage é só cache de abertura.
+const MKKEY='ocean504_mercado', NOMES={'victorpaim@pasf.com.br':'Victor','eduardodeabreuls@gmail.com':'Dudu'};
+let mercadoConfirmado=false, mercadoAutor=null, _mkTimer=null;
 function mercadoParams(){return {m2:+($('m2mkt').value||10000), vz:(+($('valorizM').value||0))/100};}
-function loadMercado(){try{const j=JSON.parse(localStorage.getItem(MKKEY)||'null');
-  if(j&&j.m2){$('m2mkt').value=j.m2;$('valorizM').value=j.vz;return true;}}catch(e){}return false;}
-function saveMercado(){try{localStorage.setItem(MKKEY,JSON.stringify(
-  {m2:+$('m2mkt').value,vz:+$('valorizM').value}));}catch(e){}mercadoConfirmado=true;}
-let mercadoConfirmado=false;
+function aplicaMercado(j){if(!j||!j.m2)return false;$('m2mkt').value=j.m2;$('valorizM').value=j.vz;return true;}
+function loadMercadoLocal(){try{return aplicaMercado(JSON.parse(localStorage.getItem(MKKEY)||'null'));}catch(e){return false;}}
+async function loadMercadoDB(){
+  try{const {data,error}=await sb.from('ocean504_config')
+      .select('valor,updated_by,updated_at').eq('chave','mercado').maybeSingle();
+    if(error||!data||!aplicaMercado(data.valor))return false;
+    mercadoAutor={por:data.updated_by,em:data.updated_at};
+    try{localStorage.setItem(MKKEY,JSON.stringify(data.valor));}catch(e){}
+    return true;}catch(e){return false;}
+}
+function saveMercado(){
+  const v={m2:+$('m2mkt').value,vz:+$('valorizM').value};
+  try{localStorage.setItem(MKKEY,JSON.stringify(v));}catch(e){}
+  mercadoConfirmado=true;
+  if(!canEdit)return;                       // sem login a premissa não sai do aparelho
+  clearTimeout(_mkTimer);                   // slider dispara muito: grava só quando para
+  _mkTimer=setTimeout(async()=>{
+    try{const {error}=await sb.from('ocean504_config').upsert(
+        {chave:'mercado',valor:v,updated_by:currentEmail,updated_at:new Date().toISOString()},
+        {onConflict:'chave'});
+      if(!error){mercadoAutor={por:currentEmail,em:new Date().toISOString()};syncMercado();}
+    }catch(e){}
+  },900);
+}
 // preço de venda esperado = m² de mercado × área, valorizado até a entrega (alimenta toda a análise)
 function syncMercado(){
   const p=mercadoParams(), ENT=getEntrega();
@@ -1512,7 +1539,13 @@ function syncMercado(){
   $('valorizV').innerHTML=(p.vz*100).toLocaleString('pt-BR',{minimumFractionDigits:1})+'<small>% a.a.</small>';
   $('vendaEstV').textContent=BRL(vend);
   const av=$('m2Aviso');
-  if(mercadoConfirmado){av.className='hq-note';av.innerHTML=BRL(vend/AREA)+'/m² na entrega · sua parte: <b>'+BRL(vend*PV)+'</b>';}
+  if(mercadoConfirmado){av.className='hq-note';
+    let cred='';
+    if(mercadoAutor&&mercadoAutor.por){const d=new Date(mercadoAutor.em);
+      cred='<br>premissa compartilhada · definida por '+(NOMES[mercadoAutor.por]||mercadoAutor.por)+
+           (isFinite(d)?' em '+d.toLocaleDateString('pt-BR'):'');}
+    else if(!canEdit)cred='<br><span style="color:var(--coral)">só neste aparelho — entre para compartilhar com o sócio</span>';
+    av.innerHTML=BRL(vend/AREA)+'/m² na entrega · sua parte: <b>'+BRL(vend*PV)+'</b>'+cred;}
   else{av.className='hq-note warn';av.textContent='⚠ Premissa ainda não conferida — ajuste para o m² real de mercado.';}
   return vend;
 }
