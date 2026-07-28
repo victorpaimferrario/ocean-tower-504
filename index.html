@@ -52,15 +52,17 @@ header h1 .num{color:var(--gold)}
 .sl select,.sl input[type=date],.sl input[type=number]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;margin-top:6px}
 /* 6 cards sempre na mesma linha: colunas fixas + tipografia reduzida para caber */
 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:16px 0}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px;
-  display:flex;flex-direction:column;justify-content:center;
-  text-align:justify;text-justify:inter-word;hyphens:auto}
+/* três faixas de altura fixa (rótulo / valor / legenda) para que as linhas
+   se alinhem entre todos os cards, independentemente do tamanho do texto */
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 11px;
+  display:grid;grid-template-rows:22px auto 1fr;align-content:start;
+  text-align:justify;text-justify:inter-word}
 .kpi-hr{border:none;border-top:1px solid var(--line);width:100%;margin:7px 0 5px}
 .kpi .k-label{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
-  font-weight:600;line-height:1.25}
-.kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(14px,1.35vw,19px);
-  margin-top:4px;line-height:1.05;text-align:left}
-.kpi .k-sub{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.3}
+  font-weight:600;line-height:1.15;align-self:start}
+.kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:19px;
+  line-height:1.05;text-align:left;white-space:nowrap}
+.kpi .k-sub{font-size:10px;color:var(--muted);margin-top:5px;line-height:1.3;text-align:left}
 @media(max-width:900px){.kpis{grid-template-columns:repeat(3,1fr)}
   .kpi .k-label{font-size:10.5px}.kpi .k-sub{font-size:11px}}
 .kpi.accent{background:linear-gradient(160deg,#fff,var(--gold-soft));border-color:var(--gold-soft)}
@@ -394,9 +396,9 @@ footer b{color:var(--ink)}
   <div class="kpis">
     <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><div class="k-sub">65 parcelas, sem INCC</div></div>
     <div class="kpi"><div class="k-label">Já pago</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub">—</div></div>
-    <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes, a valor de contrato</div></div>
-    <div class="kpi"><div class="k-label">INCC pago</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção já embutida no que pagou</div></div>
-    <div class="kpi accent"><div class="k-label">Custo total projetado</div><div class="k-val" id="kAllin">—</div><div class="k-sub">com INCC, ITBI e ambientação</div></div>
+    <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes</div></div>
+    <div class="kpi"><div class="k-label">INCC pago</div><div class="k-val" id="kIncc">—</div><div class="k-sub">já embutido no que pagou</div></div>
+    <div class="kpi accent"><div class="k-label">Custo total projetado</div><div class="k-val" id="kAllin">—</div><div class="k-sub">INCC + ITBI + ambientação</div></div>
     <div class="kpi"><div class="k-label">Preço do m²</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
 
@@ -440,6 +442,25 @@ footer b{color:var(--ink)}
     </div>
   </div>
 
+
+  <div class="grid grid3">
+    <div class="panel">
+      <h3>Realizado × projetado <span class="badge">acumulado</span></h3>
+      <p class="desc">Pago efetivo contra a curva projetada (projeção ancorada no INCC real).</p>
+      <div class="chart-box"><canvas id="cAcum"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Por ano</h3>
+      <p class="desc">Desembolso realizado e projetado, ano a ano (total da unidade).</p>
+      <div class="chart-box"><canvas id="cAno"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Composição do all-in atual</h3>
+      <p class="desc">Real pago, projeção do saldo, aportes e custos de entrada.</p>
+      <div class="chart-box"><canvas id="cComp"></canvas></div>
+    </div>
+  </div>
+
   <div class="panel" id="docsCard">
     <h3>🗂️ Documentos do negócio <span class="badge" id="docsCount">—</span></h3>
     <p class="desc">Contrato, memorial, matrícula e análises — anexe e veja aqui mesmo.</p>
@@ -466,24 +487,6 @@ footer b{color:var(--ink)}
       </div>
       <div id="upNeg" class="upstatus" style="display:none"></div>
       <div id="docsBody" class="doclist" style="margin-top:10px"></div>
-    </div>
-  </div>
-
-  <div class="grid grid3">
-    <div class="panel">
-      <h3>Realizado × projetado <span class="badge">acumulado</span></h3>
-      <p class="desc">Pago efetivo contra a curva projetada (projeção ancorada no INCC real).</p>
-      <div class="chart-box"><canvas id="cAcum"></canvas></div>
-    </div>
-    <div class="panel">
-      <h3>Por ano</h3>
-      <p class="desc">Desembolso realizado e projetado, ano a ano (total da unidade).</p>
-      <div class="chart-box"><canvas id="cAno"></canvas></div>
-    </div>
-    <div class="panel">
-      <h3>Composição do all-in atual</h3>
-      <p class="desc">Real pago, projeção do saldo, aportes e custos de entrada.</p>
-      <div class="chart-box"><canvas id="cComp"></canvas></div>
     </div>
   </div>
   </div>
@@ -1320,9 +1323,10 @@ function render(){
   const npagas=c.npagas;
   $('kContrato').textContent=BRL(c.baseTotal);
   $('kPago').textContent=BRL(c.jaPago);
-  $('kPagoSub').textContent=PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,1)+' do contrato · '+npagas+
+  $('kPagoSub').textContent=PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,1)+' · '+npagas+
     ' de 65 parcelas'+(c.aportes>0?' + aportes':'');
-  $('kFalta').textContent=BRL(c.baseRest);$('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s')+', a valor de contrato';
+  $('kFalta').textContent=BRL(c.baseRest);
+  $('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s');
   $('kIncc').textContent=BRL(c.inccPago);
   $('kAllin').textContent=BRL(c.allin);
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='com tudo: '+BRL(c.allin/AREA)+'/m²';
