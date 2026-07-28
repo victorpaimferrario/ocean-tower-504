@@ -50,12 +50,19 @@ header h1 .num{color:var(--gold)}
 .sl input[type=range]{width:100%;-webkit-appearance:none;height:5px;border-radius:5px;background:var(--mist);outline:none}
 .sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--teal);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .sl select,.sl input[type=date],.sl input[type=number]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;margin-top:6px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:16px 0}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px;display:flex;flex-direction:column;justify-content:center}
+/* 6 cards sempre na mesma linha: colunas fixas + tipografia reduzida para caber */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px;
+  display:flex;flex-direction:column;justify-content:center;
+  text-align:justify;text-justify:inter-word;hyphens:auto}
 .kpi-hr{border:none;border-top:1px solid var(--line);width:100%;margin:7px 0 5px}
-.kpi .k-label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
-.kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(17px,2vw,22px);margin-top:4px;line-height:1}
-.kpi .k-sub{font-size:11.5px;color:var(--muted);margin-top:4px}
+.kpi .k-label{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+  font-weight:600;line-height:1.25}
+.kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(14px,1.35vw,19px);
+  margin-top:4px;line-height:1.05;text-align:left}
+.kpi .k-sub{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.3}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(3,1fr)}
+  .kpi .k-label{font-size:10.5px}.kpi .k-sub{font-size:11px}}
 .kpi.accent{background:linear-gradient(160deg,#fff,var(--gold-soft));border-color:var(--gold-soft)}
 .kpi.accent .k-val{color:var(--gold)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -385,11 +392,12 @@ footer b{color:var(--ink)}
   <div class="alert" id="alert"></div>
 
   <div class="kpis">
-    <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><hr class="kpi-hr"><div class="k-sub" id="kPagoSub">—</div></div>
+    <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><div class="k-sub">65 parcelas, sem INCC</div></div>
+    <div class="kpi"><div class="k-label">Já pago</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub">—</div></div>
     <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes, a valor de contrato</div></div>
-    <div class="kpi"><div class="k-label">INCC pago acumulado</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção já embutida no que pagou</div></div>
-    <div class="kpi accent"><div class="k-label">Custo total projetado (com INCC)</div><div class="k-val" id="kAllin">—</div></div>
-    <div class="kpi"><div class="k-label">Preço do m² — contrato</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
+    <div class="kpi"><div class="k-label">INCC pago</div><div class="k-val" id="kIncc">—</div><div class="k-sub">correção já embutida no que pagou</div></div>
+    <div class="kpi accent"><div class="k-label">Custo total projetado</div><div class="k-val" id="kAllin">—</div><div class="k-sub">com INCC, ITBI e ambientação</div></div>
+    <div class="kpi"><div class="k-label">Preço do m²</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
 
   <div class="panel" id="pagCard">
@@ -1311,11 +1319,13 @@ function render(){
   $('slIncc').classList.toggle('muted',$('useObs').checked&&c.obs.mensal!=null);
   const npagas=c.npagas;
   $('kContrato').textContent=BRL(c.baseTotal);
-  $('kPagoSub').textContent='já pago '+BRL(c.jaPago)+' · '+PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,0)+' · '+npagas+' parc.'+(c.aportes>0?' + aportes':'');
+  $('kPago').textContent=BRL(c.jaPago);
+  $('kPagoSub').textContent=PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,1)+' do contrato · '+npagas+
+    ' de 65 parcelas'+(c.aportes>0?' + aportes':'');
   $('kFalta').textContent=BRL(c.baseRest);$('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s')+', a valor de contrato';
   $('kIncc').textContent=BRL(c.inccPago);
   $('kAllin').textContent=BRL(c.allin);
-  $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='real/projetado (com tudo): '+BRL(c.allin/AREA)+'/m²';
+  $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='com tudo: '+BRL(c.allin/AREA)+'/m²';
   {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
   $('cntPagas').textContent=npagas+' pagas';
   renderAlert();renderTable(c);renderCharts(c);renderResumo(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
