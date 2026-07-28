@@ -149,13 +149,47 @@ header h1 .num{color:var(--gold)}
 .tick .lb{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
   font-weight:600;margin-top:5px}
 .tick .vl{font-size:11.5px;font-weight:600}
-.mk{position:absolute;top:0;transform:translateX(-50%);text-align:center;width:150px;z-index:3}
-.mk .pill{display:inline-block;background:var(--gold);color:#231a06;font-weight:700;font-size:12.5px;
-  padding:4px 11px;border-radius:999px;white-space:nowrap}
-.mk .stem{width:3px;height:34px;background:var(--gold);margin:2px auto 0;border-radius:2px}
+/* haste e pílula separadas: a haste marca o ponto exato, a pílula se alinha para não vazar */
+.mk-stem{position:absolute;top:26px;width:3px;height:34px;background:var(--gold);
+  border-radius:2px;transform:translateX(-50%);z-index:3}
+.mk-pill{position:absolute;top:0;z-index:4;background:var(--gold);color:#231a06;font-weight:700;
+  font-size:12.5px;padding:4px 11px;border-radius:999px;white-space:nowrap}
 .zone-key{display:flex;gap:15px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:18px}
 .zone-key span{display:flex;align-items:center;gap:6px}
 .zone-key i{width:12px;height:12px;border-radius:4px;display:block;border:1px solid var(--line)}
+
+/* ===== cockpit: os 6 indicadores que decidem ===== */
+.cock{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.ck{border:1px solid var(--line);border-radius:11px;padding:14px 15px;background:var(--card);
+  position:relative;overflow:hidden}
+.ck::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line)}
+.ck.ok::before{background:var(--green)} .ck.mid::before{background:var(--gold)}
+.ck.bad::before{background:var(--coral)}
+.ck .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.ck .v{font-family:'Fraunces',serif;font-size:25px;font-weight:600;margin-top:4px;line-height:1.1}
+.ck.ok .v{color:var(--green)} .ck.mid .v{color:var(--gold)} .ck.bad .v{color:var(--coral)}
+.ck .s{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.4}
+.ck .s b{color:var(--ink);font-weight:600}
+.ck .tag{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.05em;padding:2px 7px;border-radius:999px;margin-top:7px}
+.ck.ok .tag{background:var(--green-soft);color:var(--green)}
+.ck.mid .tag{background:var(--gold-soft);color:var(--gold)}
+.ck.bad .tag{background:var(--coral-soft);color:var(--coral)}
+
+/* ===== faixa de cenários ===== */
+.faixa{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fx{border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.fx-h{padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.fx.pess .fx-h{background:var(--coral-soft);color:var(--coral)}
+.fx.base .fx-h{background:var(--mist);color:var(--ocean2)}
+.fx.otim .fx-h{background:var(--green-soft);color:var(--green)}
+.fx-b{padding:12px 14px}
+.fx-r{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:5px 0;
+  border-bottom:1px dashed var(--line)}
+.fx-r:last-child{border-bottom:none}
+.fx-r span{color:var(--muted)} .fx-r b{color:var(--ink);font-weight:600}
+.fx-r b.pos{color:var(--green)} .fx-r b.neg{color:var(--coral)}
+.fx-big{font-family:'Fraunces',serif;font-size:21px;font-weight:600;margin-bottom:6px}
 
 details.det{background:var(--card);border:1px solid var(--line);border-radius:12px;
   margin-top:22px;overflow:hidden}
@@ -239,7 +273,8 @@ footer b{color:var(--ink)}
 @media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}
   .hq-row{grid-template-columns:1fr 1fr}.hq-out{grid-column:1/-1}
   .match{grid-template-columns:1fr;gap:7px}.match .res{text-align:left}
-  .ruler{height:150px}.tick{width:76px}.tick .vl{font-size:10.5px}}
+  .ruler{height:150px}.tick{width:76px}.tick .vl{font-size:10.5px}
+  .cock{grid-template-columns:1fr 1fr}.faixa{grid-template-columns:1fr}}
 /* mobile: toque >=44px, fonte 16px (evita zoom do iOS), sliders maiores */
 @media(max-width:760px){
   .wrap{padding:0 13px}
@@ -267,6 +302,8 @@ footer b{color:var(--ink)}
   .chart-box.tall{height:290px}
   .barline .amt{width:82px}
   .zone-key{gap:10px;font-size:11px}
+  .cock{grid-template-columns:1fr 1fr;gap:9px}
+  .ck{padding:12px 12px}.ck .v{font-size:21px}
   .docchip{padding:7px 10px;font-size:16px}
   /* tabela de parcelas vira cartoes (sem scroll horizontal) */
   .tbl-wrap{max-height:70vh;border:none;border-radius:0}
@@ -468,6 +505,12 @@ footer b{color:var(--ink)}
   </div>
 
   <div class="panel">
+    <h3>Os 6 números que decidem <span class="badge">cockpit</span></h3>
+    <p class="desc">O que um investidor olha antes de qualquer gráfico: quanto você já ganhou na entrada, quanto o mercado precisa subir, quanta folga você tem e se o retorno paga o risco de ficar 5 anos sem liquidez.</p>
+    <div class="cock" id="rsCock"></div>
+  </div>
+
+  <div class="panel">
     <div class="verd" id="rsVerd">
       <div class="verd-m" id="rsMark">▲</div>
       <div><h3 id="rsHead">—</h3><p id="rsSub">—</p></div>
@@ -498,6 +541,12 @@ footer b{color:var(--ink)}
       <p class="desc">A régua na unidade em que o mercado fala.</p>
       <div class="sim-out" id="rsM2"></div>
     </div>
+  </div>
+
+  <div class="panel">
+    <h3>Se der errado, se der certo <span class="badge">faixa de cenários</span></h3>
+    <p class="desc">Um número só esconde o risco. Aqui a mesma conta em três mundos: o m² parado (nada de valorização), sua premissa atual, e um mercado aquecido. Se o cenário pessimista ainda te deixa confortável, a posição é sólida.</p>
+    <div class="faixa" id="rsFaixa"></div>
   </div>
 
   <details class="det">
@@ -1569,13 +1618,96 @@ function renderResumo(c){
     '<div class="zone z4" style="width:'+(100-pR)+'%"></div></div>';
   IDXR.forEach(x=>{r+='<div class="tick" style="left:'+P(a[x.pk])+'%"><div class="bar"></div>'+
     '<div class="lb">'+x.nome+'</div><div class="vl">'+BRL(a[x.pk])+'</div></div>';});
-  if(temPreco)r+='<div class="mk" style="left:'+P(a.venda)+'%"><div class="pill">seu preço · '+
-    BRL(a.venda)+'</div><div class="stem"></div></div>';
+  if(temPreco){const pos=P(a.venda);
+    // perto das bordas a pílula se alinha para dentro, senão estoura a largura da tela
+    const sh=pos>78?'translateX(-100%)':(pos<22?'translateX(0)':'translateX(-50%)');
+    r+='<div class="mk-stem" style="left:'+pos+'%"></div>'+
+       '<div class="mk-pill" style="left:'+pos+'%;transform:'+sh+'">seu preço · '+BRL(a.venda)+'</div>';}
   $('rsRuler').innerHTML=r;
   $('rsM2').innerHTML=IDXR.map(x=>{const pm=a[x.pk]/AREA, ok=temPreco&&a.venda>=a[x.pk];
     return '<div class="b"><div class="l">empatar '+x.nome+'</div><div class="v"'+
       (ok?' style="color:var(--green)"':'')+'>'+BRL(pm)+'</div>'+
       '<div class="ccv">por m² na entrega</div></div>';}).join('');
+  renderCockpit(c,a); renderFaixa(c,a);
+}
+
+/* ===== cockpit: os 6 números que decidem + camada de risco ===== */
+function renderCockpit(c,a){
+  const p=mercadoParams(), HOJE=new Date();
+  const anos=Math.max(0.08,yearsBetween(HOJE,a.ENT));
+  const liqDe=P=>{const ap=P*(1-a.corret)-a.custoVenda;
+    return ap-(a.isentoG?0:0.15*Math.max(0,ap-a.totalNom));};
+  // 1. desconto na planta: comprei a preço de custo, mercado está em quanto?
+  const m2Contrato=APTO/AREA, desc=1-m2Contrato/p.m2;
+  // 2. quanto o m² precisa subir por ano, a partir de hoje, para empatar
+  const cagrRF=Math.pow((a.precoMinRF/AREA)/p.m2,1/anos)-1,
+        cagrIP=Math.pow((a.precoMinIPCA/AREA)/p.m2,1/anos)-1;
+  // 3. margem de segurança: quanto o preço pode cair antes de virar prejuízo real
+  const marg=a.venda>0?(a.venda-a.precoMinIPCA)/a.venda:null;
+  // 4. prêmio sobre a renda fixa: um ativo travado 5 anos precisa pagar mais que o CDI
+  const rfLiq=c.s.cdi*c.s.pctcdi, premio=a.tir!=null?a.tir-rfLiq:null;
+  // 5. capital exposto: o que já saiu + o que você é obrigado a pagar (a valor presente)
+  let pago=0,faltaVP=0;
+  state.itens.forEach(r=>{
+    if(r.valor_pago!=null){pago+=num(r.valor_pago);return;}
+    if(r.tipo==='aporte')return;
+    const v=r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
+    faltaVP+=v/Math.pow(1+c.s.cdi,Math.max(0,yearsBetween(HOJE,new Date(r.vencimento))));
+  });
+  faltaVP+=(ENTRADA+AMB)/Math.pow(1+c.s.cdi,anos);
+  // 6. o que cada R$ 1.000/m² de negociação põe no SEU bolso
+  const por1k=(liqDe(a.venda+AREA*1000)-liqDe(a.venda))*PV;
+  const sem=(v,bom,medio,inverso)=>{if(v==null)return '';
+    const b=inverso?v<=bom:v>=bom, m=inverso?v<=medio:v>=medio;
+    return b?'ok':(m?'mid':'bad');};
+  const card=(cls,l,v,s,tag)=>'<div class="ck '+(cls||'')+'"><div class="l">'+l+'</div><div class="v">'+v+
+    '</div><div class="s">'+s+'</div>'+(tag?'<div class="tag">'+tag+'</div>':'')+'</div>';
+  let h='';
+  h+=card(sem(desc,.15,.05),'Desconto na planta',PCT(desc*100,1),
+    'Contrato a <b>'+BRL(m2Contrato)+'/m²</b> · mercado a <b>'+BRL(p.m2)+'/m²</b>',
+    desc>=.15?'alfa de entrada':(desc>=.05?'desconto magro':'sem desconto'));
+  h+=card(sem(cagrRF,.06,.10,true),'O m² precisa subir',
+    cagrRF<=0?'nada':PCT(cagrRF*100,1)+' a.a.',
+    cagrRF<=0?'O m² de hoje (<b>'+BRL(p.m2)+'</b>) já cobre a renda fixa mesmo sem valorizar mais.'
+      :'ao ano, para empatar com a renda fixa. Só para bater a inflação: <b>'+
+       (cagrIP<=0?'nada':PCT(cagrIP*100,1)+' a.a.')+'</b>',
+    cagrRF<=0?'já está no ponto':(cagrRF<=.06?'exigência baixa':(cagrRF<=.10?'exigente':'muito exigente')));
+  h+=marg!=null?card(sem(marg,.15,0),'Margem de segurança',PCT(marg*100,0),
+    'O preço pode cair até <b>'+BRL(a.venda-a.precoMinIPCA)+'</b> antes de você perder poder de compra.',
+    marg>=.15?'folga confortável':(marg>=0?'folga apertada':'já está abaixo do piso'))
+    :card('','Margem de segurança','—','Defina o m² de mercado.');
+  h+=premio!=null?card(sem(premio,.04,0),'Prêmio sobre a renda fixa',
+    (premio>=0?'+':'−')+(Math.abs(premio)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' p.p.',
+    'TIR de <b>'+PCT(a.tir*100,1)+'</b> contra <b>'+PCT(rfLiq*100,1)+'</b> da renda fixa. Um ativo travado 5 anos deveria pagar ao menos +4 p.p.',
+    premio>=.04?'paga a iliquidez':(premio>=0?'não paga o risco':'perde da renda fixa'))
+    :card('','Prêmio sobre a renda fixa','—','Defina o m² de mercado.');
+  h+=card('','Capital exposto',BRL(pago+faltaVP),
+    'Já desembolsado <b>'+BRL(pago)+'</b> + compromisso restante <b>'+BRL(faltaVP)+
+    '</b> (a valor presente). Sua parte: <b>'+BRL((pago+faltaVP)*PV)+'</b>');
+  h+=card('','Cada R$ 1.000/m² vale',BRL(por1k),
+    'É o que entra <b>no seu bolso</b> (já sem corretagem e IR, sua metade) a cada R$ 1.000/m² que você negociar a mais.');
+  $('rsCock').innerHTML=h;
+}
+function renderFaixa(c,a){
+  const p=mercadoParams(), HOJE=new Date();
+  const anos=Math.max(0.08,yearsBetween(HOJE,a.ENT));
+  const cen=[
+    {k:'pess',n:'Pessimista',d:'m² parado, sem valorização',vz:0},
+    {k:'base',n:'Sua premissa',d:PCT(p.vz*100,1)+' ao ano',vz:p.vz},
+    {k:'otim',n:'Otimista',d:PCT((p.vz+.04)*100,1)+' ao ano',vz:p.vz+.04}];
+  $('rsFaixa').innerHTML=cen.map(x=>{
+    const m2f=p.m2*Math.pow(1+x.vz,anos), preco=AREA*m2f, r=analisar(c,preco);
+    const dIP=r.liquido-r.corrIPCA, dRF=r.liquido-r.vfRF;
+    const lin=(l,v,cls)=>'<div class="fx-r"><span>'+l+'</span><b'+(cls?' class="'+cls+'"':'')+'>'+v+'</b></div>';
+    return '<div class="fx '+x.k+'"><div class="fx-h">'+x.n+' · '+x.d+'</div><div class="fx-b">'+
+      '<div class="fx-big">'+BRL(m2f)+'<span style="font-size:12px;color:var(--muted)">/m²</span></div>'+
+      lin('Venda na entrega',BRL(preco))+
+      lin('Líquido no bolso',BRL(r.liquido))+
+      lin('TIR',r.tir!=null?PCT(r.tir*100,1):'—')+
+      lin('vs inflação',(dIP>=0?'+':'−')+BRL(Math.abs(dIP)),dIP>=0?'pos':'neg')+
+      lin('vs renda fixa',(dRF>=0?'+':'−')+BRL(Math.abs(dRF)),dRF>=0?'pos':'neg')+
+      lin('Sua parte',BRL(r.liquido*PV))+
+      '</div></div>';}).join('');
 }
 function renderCusto(c){
   const a=analisar(c);
