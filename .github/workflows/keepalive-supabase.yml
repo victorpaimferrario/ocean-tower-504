@@ -40,7 +40,9 @@ jobs:
           echo
 
           if [ "$CODE" != "200" ]; then
-            echo "::error::Heartbeat falhou (esperado 200, recebeu $CODE). Se for 000/503/521 o projeto esta PAUSADO: religue em https://supabase.com/dashboard/project/aipgtnvflezqnhzbpxam"
+            echo "::error::Heartbeat falhou (esperado 200, recebeu $CODE). \
+          Se for 000/503/521 o projeto provavelmente esta PAUSADO — religue em \
+          https://supabase.com/dashboard/project/aipgtnvflezqnhzbpxam"
             exit 1
           fi
 
