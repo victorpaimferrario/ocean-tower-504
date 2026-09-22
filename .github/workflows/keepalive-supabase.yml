@@ -1,26 +1,52 @@
 name: Keep-alive Supabase
 
-# Mantém o projeto Supabase (plano grátis) ativo, evitando a pausa por inatividade.
-# Faz uma leitura leve no banco 1x por dia. Totalmente automático — não exige nenhuma ação.
+# Mantem o projeto Supabase (plano gratis) ativo, evitando a pausa por inatividade.
+#
+# HISTORICO: ate 22/09/2026 este robo fazia apenas um GET. Ele rodou todo dia e
+# respondeu 200 todo dia — e o projeto foi pausado assim mesmo (e-mail da Supabase
+# em 22/09). Ou seja: LEITURA ANONIMA NAO CONTA como atividade para eles.
+# Agora o ping faz uma ESCRITA de verdade (UPDATE de um timestamp) numa tabela
+# isolada, `ocean504_heartbeat`, criada so para isso: uma unica linha, sem dado
+# sensivel, onde o anonimo so pode dar UPDATE (nao pode inserir nem apagar).
+#
+# Totalmente automatico — nao exige nenhuma acao.
 
 on:
   schedule:
-    - cron: '23 9 * * *'     # todo dia ~09:23 UTC (~06:23 de Brasília)
-  workflow_dispatch:          # botão "Run workflow" para rodar na hora, se quiser
+    - cron: '23 9 * * *'      # ~09:23 UTC (~06:23 de Brasilia)
+    - cron: '23 21 * * *'     # ~21:23 UTC (~18:23 de Brasilia)
+  workflow_dispatch:           # botao "Run workflow" para rodar na hora
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping no Supabase (leitura leve mantém o projeto ativo)
+      - name: Escrever heartbeat no Supabase (escrita conta como atividade)
         run: |
-          set -e
-          CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -H "apikey: sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf" \
-            "https://aipgtnvflezqnhzbpxam.supabase.co/rest/v1/ocean504_parcelas?select=id&limit=1")
-          echo "Supabase REST respondeu: $CODE"
+          set -euo pipefail
+          API="https://aipgtnvflezqnhzbpxam.supabase.co/rest/v1"
+          KEY="sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf"
+          AGORA="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          CODE=$(curl -sS -o resposta.json -w "%{http_code}" \
+            -X PATCH "$API/ocean504_heartbeat?id=eq.1" \
+            -H "apikey: $KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            -d "{\"ts\":\"$AGORA\",\"origem\":\"github-actions\"}")
+
+          echo "Supabase respondeu: $CODE"
+          cat resposta.json || true
+          echo
+
           if [ "$CODE" != "200" ]; then
-            echo "::error::Ping falhou (esperado 200, recebeu $CODE)"
+            echo "::error::Heartbeat falhou (esperado 200, recebeu $CODE). Se for 000/503/521 o projeto esta PAUSADO: religue em https://supabase.com/dashboard/project/aipgtnvflezqnhzbpxam"
             exit 1
           fi
-          echo "Projeto Supabase ativo ✅"
+
+          # confere que o timestamp realmente mudou (200 sem gravar seria pior que erro)
+          if ! grep -q "$(date -u +%Y-%m-%d)" resposta.json; then
+            echo "::error::Respondeu 200 mas o timestamp nao foi gravado."
+            exit 1
+          fi
+          echo "Heartbeat gravado — projeto Supabase ativo."
