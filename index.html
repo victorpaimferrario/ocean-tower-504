@@ -578,6 +578,8 @@ footer b{color:var(--ink)}
       <div class="sl"><label>Corretagem na venda (%)</label><input type="number" id="corret" step="0.5" value="5"></div>
       <div class="sl"><label>Custos de venda — cartório/jurídico (R$)</label><input type="number" id="custoVenda" step="500" value="0"></div>
       <div class="sl"><label>IR sobre ganho de capital</label><select id="irganho"><option value="15">15% (padrão)</option><option value="isento">Isento</option></select></div>
+      <div class="sl"><label>Forma de saída</label><select id="saida"><option value="cessao">Cessão de direitos (sem ITBI)</option><option value="escritura">Escritura e revenda (com ITBI)</option></select></div>
+      <div class="sl"><label>Taxa de cessão/anuência (R$)</label><input type="number" id="taxaCessao" step="500" value="0" placeholder="confirmar no contrato"></div>
       <div class="sl"><label>IPCA a.a. — p/ retorno real (%)</label><input type="number" id="ipca" step="0.1" value="4.5"></div>
       <div class="sl"><label>IFIX esperado (% a.a.) — benchmark FIIs</label><input type="number" id="ifix" step="0.5" value="11"></div>
     </div>
@@ -741,7 +743,13 @@ const parseBRnum=s=>{if(s==null)return null;let x=String(s).replace(/[^0-9.,-]/g
 const moneyIn=n=>(n==null||n==='')?'':'R$ '+numBR(n);
 const $=id=>document.getElementById(id);
 const APTO=456009.87,AREA=47.41;
+// AMB (ambientacao) entra nos DOIS cenarios hoje. EM ABERTO: se a saida for
+// vender na entrega, voce nao mobilia — esses R$ 12.000 seriam custo so do
+// caminho de manter e alugar. Decisao de negocio pendente (set/2026).
 const ITBI=0.02,REG=0.013,AMB=12000,ENTRADA=(ITBI+REG)*APTO,PV=0.50;
+// ITBI+registro so saem do bolso quando ha escritura. Na cessao de direitos
+// quem paga o ITBI e o cessionario. Fonte unica para todo o painel.
+const custoEscritAtual=()=>{const el=$('saida');return (el&&el.value==='cessao')?0:ENTRADA;};
 const M2BASE=10000,ENTREGA=new Date('2031-07-01'),T0=new Date('2026-06-01');
 const nOf=v=>(parseInt(v.slice(0,4))-2026)*12+(parseInt(v.slice(5,7))-6);
 const num=x=>x==null||x===''?0:(+x||0);
@@ -781,7 +789,7 @@ async function bootstrap(){
   ['m2mkt','valorizM'].forEach(id=>$(id).addEventListener('input',()=>{saveMercado();render();}));
   document.querySelectorAll('details.det').forEach(d=>d.addEventListener('toggle',()=>{
     if(d.open)Object.values(charts).forEach(ch=>{try{ch.resize();}catch(e){}});}));
-  ['trib','aval','entregaData','corret','custoVenda','irganho','ipca','ifix'].forEach(id=>$(id).addEventListener('change',render));
+  ['trib','aval','entregaData','corret','custoVenda','irganho','saida','taxaCessao','ipca','ifix'].forEach(id=>$(id).addEventListener('change',render));
   ['alug','reajAlug','vac','opex','custoFixo','irAlug','horizonte','valoriz'].forEach(id=>$(id).addEventListener('change',render));
   $('entrega').addEventListener('change',()=>{const cu=$('entrega').value==='custom';$('entregaData').disabled=!cu;if(cu&&!$('entregaData').value)$('entregaData').value='2031-12-01';render();});
   $('useObs').addEventListener('change',render);
@@ -1200,7 +1208,7 @@ function compute(){
     baseTotal+=num(r.valor_base);
     if(r.valor_pago!=null){pagoReg+=num(r.valor_pago);projPagas+=proj;npagas++;}else{projRest+=proj;baseRest+=num(r.valor_base);}});
   state.itens.filter(r=>r.tipo==='aporte').forEach(r=>aportes+=num(r.valor_pago));
-  const allin=pagoReg+projRest+aportes+ENTRADA+AMB;const o=inccObs();
+  const allin=pagoReg+projRest+aportes+custoEscritAtual()+AMB;const o=inccObs();
   return {s,imP,parc,pagoReg,projRest,aportes,allin,jaPago:pagoReg+aportes,
     falta:allin-(pagoReg+aportes),custoM2:allin/AREA,inccPago:o.somaIncc,obs:o,
     baseTotal,baseRest,npagas,nrest:parc.length-npagas};
@@ -1396,7 +1404,7 @@ function renderCharts(c){
     const pj=r.tipo==='aporte'?num(r.valor_pago):r.valor_base*Math.pow(1+im,nOf(r.vencimento));
     proj[y]+=pj;if(r.valor_pago!=null)real[y]+=num(r.valor_pago);});
   charts.ano.data.labels=years;charts.ano.data.datasets[0].data=years.map(y=>real[y]);charts.ano.data.datasets[1].data=years.map(y=>proj[y]);charts.ano.update();
-  charts.comp.data.datasets[0].data=[c.pagoReg,c.projRest,c.aportes,ENTRADA,AMB];charts.comp.update();
+  charts.comp.data.datasets[0].data=[c.pagoReg,c.projRest,c.aportes,custoEscritAtual(),AMB];charts.comp.update();
   const a=analisar(c);
   charts.ret.data.labels=['Sai do bolso','Renda fixa (entrega)'];
   charts.ret.data.datasets[0].data=[a.totalNom,a.breakeven];charts.ret.update();
@@ -1448,7 +1456,13 @@ function analisar(c,vendaOverride,entregaOverride){
     const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
     nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });
-  totalNom+=ENTRADA+AMB;acumula(ENTRADA+AMB,ENT);flows.push({t:anosE,cf:-(ENTRADA+AMB)});
+  // ITBI+registro so saem do bolso se voce ESCRITURAR. Na cessao de direitos quem
+  // paga o ITBI e o cessionario, entao esse custo nao e seu. Em compensacao ele
+  // tambem nao entra no custo de aquisicao, o que aumenta o ganho tributavel.
+  // Quem mantem e aluga escritura de qualquer forma — ver analisarRenda().
+  const cessao=$('saida').value==='cessao';
+  const custoEscrit=cessao?0:ENTRADA;
+  totalNom+=custoEscrit+AMB;acumula(custoEscrit+AMB,ENT);flows.push({t:anosE,cf:-(custoEscrit+AMB)});
   // m2 de hoje = a premissa de mercado que os socios compartilham (slider -> Supabase).
   // Antes era a constante M2BASE, que nao respondia ao slider — ver nota no commit.
   const valorHoje=mercadoParams().m2*AREA, anosHoje=Math.max(0.08,yearsBetween(HOJE,ENT));
@@ -1456,10 +1470,13 @@ function analisar(c,vendaOverride,entregaOverride){
   const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
   const corret=(parseFloat($('corret').value)||0)/100;
   const custoVenda=parseFloat($('custoVenda').value)||0;
+  const taxaCessao=parseFloat($('taxaCessao').value)||0;
   const isentoG=$('irganho').value==='isento';
-  const liquidoDe=(P)=>{if(!P)return 0;const apos=P*(1-corret)-custoVenda;const ganho=apos-totalNom;const ir=isentoG?0:0.15*Math.max(0,ganho);return apos-ir;};
+  // custo fixo de saida = cartorio/juridico + taxa de cessao (esta so quando ha cessao)
+  const custoFixoSaida=custoVenda+(cessao?taxaCessao:0);
+  const liquidoDe=(P)=>{if(!P)return 0;const apos=P*(1-corret)-custoFixoSaida;const ganho=apos-totalNom;const ir=isentoG?0:0.15*Math.max(0,ganho);return apos-ir;};
   // preço de venda bruto p/ o líquido cobrir um alvo (IR de ganho incide sobre o custo NOMINAL de aquisição)
-  const precoParaLiquido=(alvo)=>{const si=(alvo+custoVenda)/(1-corret);if(isentoG)return si;const A=(alvo-0.15*totalNom)/0.85;const ci=(A+custoVenda)/(1-corret);return (ci*(1-corret)-custoVenda>totalNom)?ci:si;};
+  const precoParaLiquido=(alvo)=>{const si=(alvo+custoFixoSaida)/(1-corret);if(isentoG)return si;const A=(alvo-0.15*totalNom)/0.85;const ci=(A+custoFixoSaida)/(1-corret);return (ci*(1-corret)-custoFixoSaida>totalNom)?ci:si;};
   const precoSugerido=precoParaLiquido(vfRF);
   const precoMinIPCA=precoParaLiquido(corrIPCA), precoMinINCC=precoParaLiquido(corrINCC),
         precoMinCDI=precoParaLiquido(corrCDI), precoMinRF=precoParaLiquido(vfRF);
@@ -1470,6 +1487,7 @@ function analisar(c,vendaOverride,entregaOverride){
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
     breakM2:precoMinRF/AREA,valorizNec:Math.pow(precoMinRF/valorHoje,1/anosHoje)-1,inccProxy:pagoOuProj,
     venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows,
+    cessao,custoEscrit,taxaCessao,custoFixoSaida,
     corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA,precoMinINCC,precoMinCDI,precoMinRF,realizado,projetado};
 }
 
@@ -1486,15 +1504,22 @@ function analisarRenda(a){
   if(!alug||!Pent)return {ok:false,H};
   const liqAno=k=>{const b=alug*12*Math.pow(1+reaj,k-1);const e=b*(1-vac);const n=e*(1-opex)-fixo;return n*(1-irA);};
   const brutoAno1=alug*12, efet1=brutoAno1*(1-vac), noi1=efet1*(1-opex)-fixo, liq1=noi1*(1-irA);
-  const yieldB=brutoAno1/Pent, cap=noi1/Pent, yieldL=liq1/Pent, coc=liq1/a.totalNom;
-  let acc=0,pay=null;for(let k=1;k<=50;k++){acc+=liqAno(k);if(acc>=a.totalNom){pay=k;break;}}
+  const yieldB=brutoAno1/Pent, cap=noi1/Pent, yieldL=liq1/Pent;
+  const totalManterPre=a.totalNom+(ENTRADA-a.custoEscrit), coc=liq1/totalManterPre;
+  let acc=0,pay=null;for(let k=1;k<=50;k++){acc+=liqAno(k);if(acc>=totalManterPre){pay=k;break;}}
+  // Para alugar voce escritura o imovel, entao ITBI+registro sao custo REAL deste
+  // caminho — mesmo quando o cenario de venda acima assume cessao de direitos.
+  // Ja a taxa de cessao nao existe aqui: na saida terminal voce ja escriturou.
+  const deltaEscrit=ENTRADA-a.custoEscrit;            // 0 se ja escriturou, ENTRADA se a venda era por cessao
+  const totalManter=a.totalNom+deltaEscrit;
   const flows=a.flows.slice(); let somaL=0;
+  if(deltaEscrit>0)flows.push({t:a.anosE,cf:-deltaEscrit});
   for(let k=1;k<=H;k++){const l=liqAno(k);somaL+=l;flows.push({t:a.anosE+k,cf:l});}
   const Pterm=Pent*Math.pow(1+val,H);
-  const aposT=Pterm*(1-a.corret)-a.custoVenda, ganhoT=aposT-a.totalNom, irT=a.isentoG?0:0.15*Math.max(0,ganhoT), liqTerm=aposT-irT;
+  const aposT=Pterm*(1-a.corret)-a.custoVenda, ganhoT=aposT-totalManter, irT=a.isentoG?0:0.15*Math.max(0,ganhoT), liqTerm=aposT-irT;
   flows.push({t:a.anosE+H,cf:liqTerm});
-  const tir=irr(flows), tirReal=tir!=null?(1+tir)/(1+a.ipca)-1:null, moic=(somaL+liqTerm)/a.totalNom;
-  return {ok:true,H,Pent,alug,vac,irA,liq1,yieldB,cap,yieldL,coc,pay,tir,tirReal,Pterm,liqTerm,moic,val};
+  const tir=irr(flows), tirReal=tir!=null?(1+tir)/(1+a.ipca)-1:null, moic=(somaL+liqTerm)/totalManter;
+  return {ok:true,H,Pent,alug,vac,irA,liq1,yieldB,cap,yieldL,coc,pay,tir,tirReal,Pterm,liqTerm,moic,val,totalManter};
 }
 
 function renderCorrigido(c){
@@ -1595,7 +1620,7 @@ function serieCorrida(c){
     const dd=(r.valor_pago!=null&&r.data_pagamento)?new Date(r.data_pagamento):new Date(r.vencimento);
     des.push({d:norm(dd),v:v,parc:true});
   });
-  des.push({d:fimD,v:ENTRADA+AMB,parc:false});
+  des.push({d:fimD,v:custoEscritAtual()+AMB,parc:false});
   // fator na data exata do desembolso (interpola dentro do mês) — assim o fim da linha
   // bate com os cards de "desembolso corrigido", que contam dia a dia
   const noDia=(G,x)=>{const i=x.i, prox=Math.min(i+1,G.length-1);
@@ -1684,7 +1709,7 @@ function renderResumo(c){
 function renderCockpit(c,a){
   const p=mercadoParams(), HOJE=new Date();
   const anos=Math.max(0.08,yearsBetween(HOJE,a.ENT));
-  const liqDe=P=>{const ap=P*(1-a.corret)-a.custoVenda;
+  const liqDe=P=>{const ap=P*(1-a.corret)-a.custoFixoSaida;
     return ap-(a.isentoG?0:0.15*Math.max(0,ap-a.totalNom));};
   // 1. desconto na planta: comprei a preço de custo, mercado está em quanto?
   const m2Contrato=APTO/AREA, desc=1-m2Contrato/p.m2;
@@ -1703,7 +1728,7 @@ function renderCockpit(c,a){
     const v=r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
     faltaVP+=v/Math.pow(1+c.s.cdi,Math.max(0,yearsBetween(HOJE,new Date(r.vencimento))));
   });
-  faltaVP+=(ENTRADA+AMB)/Math.pow(1+c.s.cdi,anos);
+  faltaVP+=(a.custoEscrit+AMB)/Math.pow(1+c.s.cdi,anos);
   // 6. o que cada R$ 1.000/m² de negociação põe no SEU bolso
   const por1k=(liqDe(a.venda+AREA*1000)-liqDe(a.venda))*PV;
   const sem=(v,bom,medio,inverso)=>{if(v==null)return '';
@@ -1762,7 +1787,7 @@ function renderCusto(c){
   const a=analisar(c);
   let comp='<b>Sai do bolso:</b> nominal '+BRL(a.nominalParc)+' + INCC '+BRL(a.correcao);
   if(a.aportesTot>0)comp+=' + aportes extras '+BRL(a.aportesTot);
-  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(a.totalNom)+'</b>. Para empatar com a renda fixa, vender a <b>'+BRL(a.breakM2)+'/m²</b> (o m² precisa subir '+PCT(a.valorizNec*100,1)+' a.a. a partir de hoje).';
+  comp+=(a.cessao?' + <i>sem ITBI/registro (saída por cessão)</i>':' + ITBI/registro '+BRL(a.custoEscrit))+' + ambientação '+BRL(AMB)+' = <b>'+BRL(a.totalNom)+'</b>. Para empatar com a renda fixa, vender a <b>'+BRL(a.breakM2)+'/m²</b> (o m² precisa subir '+PCT(a.valorizNec*100,1)+' a.a. a partir de hoje).';
   $('cdComp').innerHTML=comp;
   $('cdData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
   $('cdTotal').textContent=BRL(a.totalNom);
@@ -1777,7 +1802,7 @@ function renderCusto(c){
     const bateu=a.liquido>=a.vfRF, dif=a.liquido-a.vfRF;
     liq.className='v '+(bateu?'pos':'neg');
     tirEl.className='v '+(a.tir!=null&&a.tir>=a.taxa?'pos':'neg');
-    let txt='Vendendo por <b>'+BRL(a.venda)+'</b>, após corretagem ('+PCT(a.corret*100,1)+'), custos '+BRL(a.custoVenda)+' e IR de ganho ('+(a.isentoG?'isento':'15%')+'), sobram <b>'+BRL(a.liquido)+'</b> líquidos — custos de saída de '+BRL(a.custosSaida)+'. ';
+    let txt='Vendendo por <b>'+BRL(a.venda)+'</b>, após corretagem ('+PCT(a.corret*100,1)+'), custos '+BRL(a.custoVenda)+(a.cessao&&a.taxaCessao>0?', taxa de cessão '+BRL(a.taxaCessao):'')+' e IR de ganho ('+(a.isentoG?'isento':'15%')+'), sobram <b>'+BRL(a.liquido)+'</b> líquidos — custos de saída de '+BRL(a.custosSaida)+'. ';
     txt+='<b>'+(bateu?'BATEU a renda fixa (+'+BRL(dif)+')':'a renda fixa teria sido melhor (−'+BRL(Math.abs(dif))+')')+'.</b> ';
     txt+='TIR da revenda <b>'+(a.tir!=null?PCT(a.tir*100,1):'—')+' a.a.</b> vs renda fixa '+PCT(a.taxa*100,2)+' a.a. ('+regime+')';
     if(a.tirReal!=null)txt+='; em termos reais (IPCA '+PCT(a.ipca*100,1)+') ≈ <b>'+PCT(a.tirReal*100,1)+' a.a.</b>';
