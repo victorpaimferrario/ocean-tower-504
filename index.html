@@ -1449,7 +1449,9 @@ function analisar(c,vendaOverride,entregaOverride){
     nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });
   totalNom+=ENTRADA+AMB;acumula(ENTRADA+AMB,ENT);flows.push({t:anosE,cf:-(ENTRADA+AMB)});
-  const valorHoje=M2BASE*AREA;
+  // m2 de hoje = a premissa de mercado que os socios compartilham (slider -> Supabase).
+  // Antes era a constante M2BASE, que nao respondia ao slider — ver nota no commit.
+  const valorHoje=mercadoParams().m2*AREA, anosHoje=Math.max(0.08,yearsBetween(HOJE,ENT));
   // --- cenário de saída (revenda) ---
   const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
   const corret=(parseFloat($('corret').value)||0)/100;
@@ -1466,7 +1468,7 @@ function analisar(c,vendaOverride,entregaOverride){
   if(venda){const f2=flows.concat([{t:anosE,cf:liquido}]);tir=irr(f2);moic=liquido/totalNom;if(tir!=null)tirReal=(1+tir)/(1+ipca)-1;}
   return {ENT,anosE,taxa,isento,pct:s.pctcdi,totalNom,vfRF,nominalParc,pagoOuProj,aportesTot,
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
-    breakM2:vfRF/AREA,valorizNec:Math.pow(vfRF/valorHoje,1/anosE)-1,inccProxy:pagoOuProj,
+    breakM2:precoMinRF/AREA,valorizNec:Math.pow(precoMinRF/valorHoje,1/anosHoje)-1,inccProxy:pagoOuProj,
     venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows,
     corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA,precoMinINCC,precoMinCDI,precoMinRF,realizado,projetado};
 }
@@ -1760,7 +1762,7 @@ function renderCusto(c){
   const a=analisar(c);
   let comp='<b>Sai do bolso:</b> nominal '+BRL(a.nominalParc)+' + INCC '+BRL(a.correcao);
   if(a.aportesTot>0)comp+=' + aportes extras '+BRL(a.aportesTot);
-  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(a.totalNom)+'</b>. Break-even por m²: <b>'+BRL(a.breakM2)+'/m²</b> (valorização de '+PCT(a.valorizNec*100,1)+' a.a. p/ empatar).';
+  comp+=' + ITBI/registro '+BRL(ENTRADA)+' + ambientação '+BRL(AMB)+' = <b>'+BRL(a.totalNom)+'</b>. Para empatar com a renda fixa, vender a <b>'+BRL(a.breakM2)+'/m²</b> (o m² precisa subir '+PCT(a.valorizNec*100,1)+' a.a. a partir de hoje).';
   $('cdComp').innerHTML=comp;
   $('cdData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
   $('cdTotal').textContent=BRL(a.totalNom);
