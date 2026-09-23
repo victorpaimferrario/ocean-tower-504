@@ -43,7 +43,7 @@ header h1 .num{color:var(--gold)}
 .obsline b{color:var(--ocean2);font-family:'Fraunces',serif}
 .toggle{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px}
 .toggle input{width:16px;height:16px;accent-color:var(--teal)}
-.sliders{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 22px}
+.sliders{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 22px}
 .sl label{display:flex;justify-content:space-between;font-size:12.5px;font-weight:500;margin-bottom:5px}
 .sl .val{font-family:'Fraunces',serif;font-weight:600;font-size:15px;color:var(--ocean2)}
 .sl.muted{opacity:.45}
@@ -51,7 +51,7 @@ header h1 .num{color:var(--gold)}
 .sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--teal);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .sl select,.sl input[type=date],.sl input[type=number]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;margin-top:6px}
 /* 6 cards sempre na mesma linha: colunas fixas + tipografia reduzida para caber */
-.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:16px 0}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:16px 0}
 /* três faixas de altura fixa (rótulo / valor / legenda) para que as linhas
    se alinhem entre todos os cards, independentemente do tamanho do texto */
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 11px;
@@ -63,16 +63,16 @@ header h1 .num{color:var(--gold)}
 .kpi .k-val{font-family:'Fraunces',serif;font-weight:600;font-size:19px;
   line-height:1.05;text-align:left;white-space:nowrap}
 .kpi .k-sub{font-size:10px;color:var(--muted);margin-top:5px;line-height:1.3;text-align:left}
-@media(max-width:900px){.kpis{grid-template-columns:repeat(3,1fr)}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
   .kpi .k-label{font-size:10.5px}.kpi .k-sub{font-size:11px}}
 .kpi.accent{background:linear-gradient(160deg,#fff,var(--gold-soft));border-color:var(--gold-soft)}
 .kpi.accent .k-val{color:var(--gold)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .grid>*{min-width:0}
 .grid.grid3{grid-template-columns:repeat(3,1fr)}
 .grid3 .panel{display:flex;flex-direction:column}
 .grid3 .chart-box{margin-top:auto}
-@media(max-width:1100px){.grid.grid3{grid-template-columns:1fr 1fr}}
+@media(max-width:1100px){.grid.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.grid.grid3{grid-template-columns:1fr}}
 .mtbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
 .mtbl th,.mtbl td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
@@ -98,7 +98,7 @@ header h1 .num{color:var(--gold)}
 .sim-row .f{display:flex;flex-direction:column;gap:4px}
 .sim-row label{font-size:11px;color:var(--muted);font-weight:600}
 .sim-row select,.sim-row input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit}
-.sim-out{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sim-out{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .sim-out .b{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px}
 .sim-out .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
 .sim-out .v{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin-top:3px}
@@ -107,7 +107,7 @@ header h1 .num{color:var(--gold)}
 .sim-out .ccv b{color:var(--ink);font-weight:600}
 
 /* ===== resumo da análise: pergunta única + placar + corrida + régua ===== */
-.hq-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;align-items:end}
+.hq-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;align-items:end}
 .hq-f label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
   color:var(--muted);font-weight:600;margin-bottom:6px}
 .hq-big{font-family:'Fraunces',serif;font-size:27px;font-weight:600;color:var(--gold);line-height:1.1}
@@ -168,7 +168,7 @@ header h1 .num{color:var(--gold)}
 .zone-key i{width:12px;height:12px;border-radius:4px;display:block;border:1px solid var(--line)}
 
 /* ===== cockpit: os 6 indicadores que decidem ===== */
-.cock{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cock{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .ck{border:1px solid var(--line);border-radius:11px;padding:14px 15px;background:var(--card);
   position:relative;overflow:hidden}
 .ck::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line)}
@@ -279,44 +279,70 @@ td.metade{color:#1C7C8C;font-weight:600;background:rgba(28,124,140,.06)}
 }
 footer{color:var(--muted);font-size:12px;padding:24px 0 48px;line-height:1.7}
 footer b{color:var(--ink)}
-@media(max-width:860px){.sliders{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.sim-out{grid-template-columns:1fr 1fr}
-  .hq-row{grid-template-columns:1fr 1fr}.hq-out{grid-column:1/-1}
+@media(max-width:860px){.sliders{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:minmax(0,1fr)}.sim-out{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hq-row{grid-template-columns:repeat(2,minmax(0,1fr))}.hq-out{grid-column:1/-1}
   .match{grid-template-columns:1fr;gap:7px}.match .res{text-align:left}
   .ruler{height:150px}.tick{width:76px}.tick .vl{font-size:10.5px}
   .cock{grid-template-columns:1fr 1fr}.faixa{grid-template-columns:1fr}}
+/* ===== TOQUE: vale por dedo, nao por largura =====
+   Antes estas regras viviam dentro de @media(max-width:760px). Um iPad (768px)
+   ou um celular deitado (800px) e pointer:coarse e ficava de fora: input de
+   12px (que o iOS responde dando zoom ao focar) e alvo de 26px de altura.
+   O criterio certo e a capacidade do ponteiro. */
+@media(pointer:coarse),(max-width:760px){
+  input,select,textarea{font-size:16px!important}
+  table.pg input,.sl input,.sl select,.docctrl select,.addbar input,
+  .modal input,.modal select,.hq-f input{min-height:44px}
+  .tab,.authbtn,.btn,.docbtn{min-height:44px}
+  .docbtn{padding:11px 14px}
+  /* o alvo tocavel do range e a ALTURA DO ELEMENTO, nao a do thumb: um track de
+     8px da 8px de alvo. Aqui o elemento vai a 44px e o track fica fino via
+     ::-webkit-slider-runnable-track, preservando a aparencia. */
+  .sl input[type=range],.hq-f input[type=range]{
+    height:44px;min-height:44px;background:transparent;-webkit-appearance:none;appearance:none;padding:0}
+  .sl input[type=range]::-webkit-slider-runnable-track,
+  .hq-f input[type=range]::-webkit-slider-runnable-track{
+    height:8px;border-radius:5px;background:var(--mist)}
+  .sl input[type=range]::-webkit-slider-thumb,
+  .hq-f input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;
+    background:var(--teal);border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2);margin-top:-9px}
+  .sl input[type=range]::-moz-range-track,
+  .hq-f input[type=range]::-moz-range-track{height:8px;border-radius:5px;background:var(--mist)}
+  .sl input[type=range]::-moz-range-thumb,
+  .hq-f input[type=range]::-moz-range-thumb{
+    width:26px;height:26px;border-radius:50%;background:var(--teal);border:3px solid #fff}
+}
+
 /* mobile: toque >=44px, fonte 16px (evita zoom do iOS), sliders maiores */
 @media(max-width:760px){
   .wrap{padding:0 13px}
-  .kpis{grid-template-columns:1fr 1fr;gap:8px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   header{padding:16px 0 14px}
   .head-main h1{font-size:21px;margin:4px 0 3px}
   .head-main .sub{font-size:13px}
   .head-side{gap:6px}
   .head-side .stamp{display:none}
   .head-auth{gap:8px}
-  input,select,textarea{font-size:16px!important}
-  table.pg input,.sl input,.sl select,.docctrl select,.addbar input,.modal input,.modal select{min-height:44px}
-  .tab,.authbtn,.btn,.docbtn{min-height:44px}
-  .docbtn{padding:11px 14px}
-  .sl input[type=range]{height:8px}
-  .sl input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
-  .sl input[type=range]::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff}
-  .hq-row{grid-template-columns:1fr;gap:18px}
-  .hq-f input[type=range]{height:8px}
-  .hq-f input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
-  .hq-f input[type=range]::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff}
+  .hq-row{grid-template-columns:minmax(0,1fr);gap:18px}
   .hq-big,.hq-big2{font-size:24px}
   .verd{flex-direction:column;gap:8px;padding:16px}
   .verd h3{font-size:18px}
   .chart-box.tall{height:290px}
   .barline .amt{width:82px}
   .zone-key{gap:10px;font-size:11px}
-  .cock{grid-template-columns:1fr 1fr;gap:9px}
+  .cock{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
   .ck{padding:12px 12px}.ck .v{font-size:21px}
   .docchip{padding:7px 10px;font-size:16px}
   /* tabela de parcelas vira cartoes (sem scroll horizontal) */
-  .tbl-wrap{max-height:70vh;border:none;border-radius:0}
-  table.pg{min-width:0;width:100%}
+  /* em modo cartao nada deve rolar na horizontal. A scrollbar VERTICAL do wrapper
+     consome ~10px do clientWidth, mas os <tr> com width:100% sao resolvidos contra
+     a largura sem ela — sobrava um scroll horizontal de 10px no Galaxy S24 (360px). */
+  .tbl-wrap{max-height:70vh;border:none;border-radius:0;overflow-x:hidden}
+  /* display:table resolve a largura como max(width, min-content) — com 301,64px de
+     min-content a tabela ignorava o width:100% e vazava 10px do wrapper (Galaxy S24).
+     Em modo cartao ela nao precisa ser tabela: como bloco, respeita o container. */
+  table.pg{min-width:0;width:100%;display:block;max-width:100%}
   table.pg thead{display:none}
   table.pg tbody,table.pg tr,table.pg td{display:block;width:100%}
   table.pg tr{border:1px solid var(--line);border-radius:12px;margin-bottom:10px;padding:6px 12px;background:#fff}
@@ -332,6 +358,13 @@ footer b{color:var(--ink)}
   table.pg td:first-child::before{display:none}
   table.pg input{width:auto;max-width:62%}
   table.pg input.dt{max-width:75%}
+}
+/* Abaixo de 430px duas colunas de controle nao cabem. Precisa vir DEPOIS das
+   queries de 860px e 760px: mesma especificidade, vence a ultima declarada. */
+@media(max-width:430px){
+  .sliders{grid-template-columns:minmax(0,1fr)}
+  .sim-out{grid-template-columns:minmax(0,1fr)}
+  .cock{grid-template-columns:minmax(0,1fr)}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 /* header com login no topo */
@@ -515,7 +548,7 @@ footer b{color:var(--ink)}
         <input type="range" id="valorizM" min="0" max="15" step="0.5" value="6"></div>
       <div class="sl"><label>Rende % do CDI <span class="val" id="vPct">90%</span></label><input type="range" id="pctcdi" min="70" max="120" step="1" value="90"></div>
       <div class="sl"><label>Corretagem na venda (%)</label><input type="number" id="corret" step="0.5" value="5"></div>
-      <div class="sl"><label>Forma de saída</label><select id="saida"><option value="cessao">Cessão de direitos (sem ITBI)</option><option value="escritura">Escritura e revenda (com ITBI)</option></select></div>
+      <div class="sl"><label>Forma de saída</label><select id="saida"><option value="cessao">Cessão (sem ITBI)</option><option value="escritura">Escritura (com ITBI)</option></select></div>
     </div>
     <div class="hq-row" style="margin-top:12px"><div class="hq-f hq-out">
       <label>Venda estimada na entrega (m² × valorização)</label>
