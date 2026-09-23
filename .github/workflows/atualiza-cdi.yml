@@ -15,14 +15,23 @@ jobs:
       - name: Baixar o repositório
         uses: actions/checkout@v4
 
-      - name: Buscar Selic/CDI no Banco Central e gravar cdi.json
+      - name: Buscar CDI no Banco Central e gravar cdi.json
         run: |
           set -e
-          VALOR=$(curl -sS "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json" \
+          # Serie 4389 = taxa CDI anualizada (base 252), % a.a.
+          # Ate 09/2026 usavamos a 432 (Selic META), rotulada no painel como "CDI".
+          # Nao sao a mesma coisa: o CDI roda tipicamente ~0,1 p.p. ABAIXO da Selic
+          # meta, entao a renda fixa aparecia levemente inflada e o veredito do
+          # imovel, levemente mais duro. Este valor alimenta so a PROJECAO futura
+          # (o CDI realizado ja vinha certo da serie 4391, em indices.json).
+          VALOR=$(curl -sS "https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/1?formato=json" \
             | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d[-1]['valor']).replace(',','.'))")
           if [ -z "$VALOR" ]; then echo "Falha ao obter o valor do BCB"; exit 1; fi
+          # sanidade: uma taxa fora de 1%-40% a.a. e quase certamente lixo do parse
+          python3 -c "import sys; v=float('$VALOR'); sys.exit(0 if 1<=v<=40 else 1)" \
+            || { echo "Valor implausivel para CDI a.a.: $VALOR"; exit 1; }
           DATA=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          printf '{\n  "cdi_aa": %s,\n  "fonte": "Banco Central - SGS serie 432 (Selic meta, %% a.a.)",\n  "atualizado_em": "%s"\n}\n' "$VALOR" "$DATA" > cdi.json
+          printf '{\n  "cdi_aa": %s,\n  "fonte": "Banco Central - SGS serie 4389 (CDI anualizado base 252, %% a.a.)",\n  "atualizado_em": "%s"\n}\n' "$VALOR" "$DATA" > cdi.json
           echo "cdi.json atualizado para $VALOR"
 
       - name: Commitar se houver mudança

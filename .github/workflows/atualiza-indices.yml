@@ -5,11 +5,19 @@ name: Atualiza indices (IPCA/CDI)
 # de cada mes (passado) e pela projecao (slider) so no que falta ate a entrega.
 #   IPCA  -> serie 433  (variacao mensal, % a.m.)
 #   CDI   -> serie 4391 (CDI acumulado no mes, % a.m.)
-# Totalmente automatico. Roda todo dia 5 (mes anterior ja publicado) e sob demanda.
+# Totalmente automatico. Roda todo dia 12 e sob demanda.
+#
+# POR QUE DIA 12: o IBGE publica o IPCA do mes anterior por volta do dia 10.
+# Ate 09/2026 este robo rodava dia 5 — antes da publicacao — e por isso o mes
+# anterior NUNCA entrava na serie: o painel operava sempre com o IPCA dois meses
+# atrasado. Pior que atraso, virava erro de conta: fatorReal() pula mes ausente
+# (fator 1) e a projecao do slider so comeca em HOJE, entao o mes faltante ficava
+# sem correcao nenhuma — subestimando o desembolso corrigido e o piso de venda
+# IPCA. Dia 12 da ~2 dias de folga sobre a publicacao do IBGE.
 
 on:
   schedule:
-    - cron: '30 9 5 * *'      # dia 5, ~09:30 UTC (~06:30 Brasilia)
+    - cron: '30 9 12 * *'     # dia 12, ~09:30 UTC (~06:30 Brasilia)
   workflow_dispatch:
 
 permissions:

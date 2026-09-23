@@ -802,7 +802,7 @@ async function bootstrap(){
   setupDropzone('dzNeg','fileNeg','catNeg','upNeg');
   fillParcelaSelects();
   await loadDocs();
-  try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (Selic meta): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
+  try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (CDI anualizado): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
   try{const ri=await fetch('indices.json?'+Date.now());if(ri.ok){const j=await ri.json();if(j&&j.ipca)SERIES={ipca:j.ipca||{},cdi:j.cdi||{},atualizado_em:j.atualizado_em};}}catch(e){}
   if(await loadMercadoDB())mercadoConfirmado=true;   // premissa do banco vence o cache local
   $('stamp').textContent='🟢 dados ao vivo (Supabase)';
