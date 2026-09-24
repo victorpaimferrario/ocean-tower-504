@@ -555,7 +555,7 @@ footer b{color:var(--ink)}
         <div class="hq-big" id="valorizV">—</div>
         <input type="range" id="valorizM" min="0" max="15" step="0.5" value="6"></div>
       <div class="sl"><label>Rende % do CDI <span class="val" id="vPct">90%</span></label><input type="range" id="pctcdi" min="70" max="120" step="1" value="90"></div>
-      <div class="sl"><label>Corretagem na venda (%)</label><input type="number" id="corret" step="0.5" value="5"></div>
+      <div class="sl"><label>Corretagem na venda (%)</label><input type="number" id="corret" step="0.5" value="5" min="0" max="30" inputmode="decimal"></div>
       <div class="sl"><label>Forma de saída</label><select id="saida"><option value="cessao">Cessão (sem ITBI)</option><option value="escritura">Escritura (com ITBI)</option></select></div>
       <div class="sl" id="slTaxaCessao"><label>Taxa de cessão/anuência (R$)</label><input type="number" id="taxaCessao" step="500" value="0" placeholder="confirmar no contrato" inputmode="numeric"></div>
     </div>
@@ -628,7 +628,7 @@ footer b{color:var(--ink)}
       <div class="sl"><label>CDI a.a. <span class="val" id="vCdi">14,3%</span></label><input type="range" id="cdi" min="8" max="16" step="0.05" value="14.25"></div>
       <div class="sl"><label>Entrega prevista</label><select id="entrega"><option value="2031-07-01">No prazo (jul/2031)</option><option value="2032-01-01">+180d tolerância (jan/2032)</option><option value="custom">Atraso (escolher data)</option></select></div>
       <div class="sl"><label>Data se atrasar</label><input type="date" id="entregaData" value="2031-07-01" disabled></div>
-      <div class="sl"><label>Custos de venda — cartório/jurídico (R$)</label><input type="number" id="custoVenda" step="500" value="0"></div>
+      <div class="sl"><label>Custos de venda — cartório/jurídico (R$)</label><input type="number" id="custoVenda" step="500" value="0" min="0" inputmode="numeric"></div>
       <div class="sl"><label>IR sobre ganho de capital</label><select id="irganho"><option value="15">15% (padrão)</option><option value="isento">Isento</option></select></div>
       <div class="sl"><label>IPCA a.a. — p/ retorno real (%)</label><input type="number" id="ipca" step="0.1" value="4.5"></div>
       <div class="sl"><label>IFIX esperado (% a.a.) — benchmark FIIs</label><input type="number" id="ifix" step="0.5" value="11"></div>
@@ -684,13 +684,13 @@ footer b{color:var(--ink)}
     <h2>Cenário de manter e alugar</h2>
     <div class="obsline" style="font-size:12px;color:var(--muted)">⚠️ Aqui entram <b>premissas de mercado</b> (aluguel e valorização) — ao contrário do resto do painel, que só usa dado real. Edite à vontade para simular. Usa o <b>valor de venda esperado</b> informado acima como valor do imóvel na entrega.</div>
     <div class="sliders">
-      <div class="sl"><label>Aluguel mensal estimado (R$)</label><input type="number" id="alug" step="100" placeholder="0"></div>
+      <div class="sl"><label>Aluguel mensal estimado (R$)</label><input type="number" id="alug" step="100" placeholder="0" min="0" inputmode="numeric"></div>
       <div class="sl"><label>Reajuste do aluguel (% a.a.)</label><input type="number" id="reajAlug" step="0.1" value="4.5"></div>
-      <div class="sl"><label>Vacância (%)</label><input type="number" id="vac" step="1" value="8"></div>
-      <div class="sl"><label>Custos sobre o aluguel — adm+manut (%)</label><input type="number" id="opex" step="1" value="15"></div>
-      <div class="sl"><label>Custos fixos do proprietário (R$/ano)</label><input type="number" id="custoFixo" step="500" value="0"></div>
-      <div class="sl"><label>IR sobre aluguel (%)</label><input type="number" id="irAlug" step="0.5" value="27.5"></div>
-      <div class="sl"><label>Horizonte de permanência (anos)</label><input type="number" id="horizonte" step="1" value="5"></div>
+      <div class="sl"><label>Vacância (%)</label><input type="number" id="vac" step="1" value="8" min="0" max="100"></div>
+      <div class="sl"><label>Custos sobre o aluguel — adm+manut (%)</label><input type="number" id="opex" step="1" value="15" min="0" max="100"></div>
+      <div class="sl"><label>Custos fixos do proprietário (R$/ano)</label><input type="number" id="custoFixo" step="500" value="0" min="0"></div>
+      <div class="sl"><label>IR sobre aluguel (%)</label><input type="number" id="irAlug" step="0.5" value="27.5" min="0" max="100"></div>
+      <div class="sl"><label>Horizonte de permanência (anos)</label><input type="number" id="horizonte" step="1" value="5" min="1" max="50"></div>
       <div class="sl"><label>Valorização do imóvel (% a.a.)</label><input type="number" id="valoriz" step="0.5" value="4"></div>
     </div>
   </div>
@@ -821,7 +821,33 @@ const CAT_PARCELA=['boleto','pix_socios','comprovante_pago','comprovante']; // d
 const SB_URL='https://aipgtnvflezqnhzbpxam.supabase.co';
 const SB_KEY='sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf';
 const EDITORES=['victorpaim@pasf.com.br','eduardodeabreuls@gmail.com'];
-const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+// O painel carrega 3 scripts de CDN. Se qualquer um nao chegar (wifi corporativo
+// bloqueando, CDN fora do ar, 4G ruim), o codigo abaixo referenciava uma variavel
+// inexistente e derrubava TUDO: nem numeros, nem parcelas — pagina morta.
+// Agora cada dependencia e opcional e o painel degrada em vez de sumir.
+function sbOffline(){
+  const off={message:'sem conexão com o banco'};
+  const q={select(){return this;},eq(){return this;},order(){return this;},limit(){return this;},
+    maybeSingle:async()=>({data:null,error:off}),
+    upsert:async()=>({error:off}),update:async()=>({error:off}),
+    insert:async()=>({error:off}),delete:async()=>({error:off}),
+    then:(r)=>r({data:null,error:off})};
+  return {__offline:true, from:()=>q,
+    auth:{getSession:async()=>({data:{session:null}}),
+      signInWithPassword:async()=>({data:{session:null},error:off}),
+      signOut:async()=>({error:null}),
+      onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    storage:{from:()=>({list:async()=>({data:[],error:off}),
+      createSignedUrl:async()=>({data:null,error:off}),
+      upload:async()=>({error:off}),remove:async()=>({error:off})})}};
+}
+const SB_OK=typeof supabase!=='undefined'&&supabase&&typeof supabase.createClient==='function';
+const sb=SB_OK?supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}})
+              :sbOffline();
+const CHART_OK=typeof Chart!=='undefined'&&typeof ChartDataLabels!=='undefined';
+// a biblioteca existir nao garante que o banco responde: so uma chamada real diz.
+// Sem isto o selo afirmava "dados ao vivo" com a rede caida.
+let bancoFalhou=false;
 
 async function bootstrap(){
   // cria os gráficos com as duas abas E o "ver detalhes" abertos (senão os ocultos nascem 0×0)
@@ -830,11 +856,14 @@ async function bootstrap(){
   initCharts();
   document.querySelectorAll('details.det').forEach(d=>d.open=false);
   document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.id==='tabAcomp'));
-  const {data:{session}}=await sb.auth.getSession();
-  canEdit=!!(session&&session.user&&EDITORES.includes(session.user.email));
-  currentEmail=session&&session.user?session.user.email:null;
-  sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
-  await loadFromDB();
+  // rede indisponivel nao pode impedir o painel de abrir: segue como visitante
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    canEdit=!!(session&&session.user&&EDITORES.includes(session.user.email));
+    currentEmail=session&&session.user?session.user.email:null;
+    sb.auth.onAuthStateChange(async (_e,s)=>{canEdit=!!(s&&s.user&&EDITORES.includes(s.user.email));currentEmail=s&&s.user?s.user.email:null;updateAuthUI();await loadDocs();renderDocs();render();});
+  }catch(e){canEdit=false;currentEmail=null;bancoFalhou=true;console.warn('auth indisponivel:',e&&e.message);}
+  try{await loadFromDB();}catch(e){bancoFalhou=true;console.warn('banco indisponivel:',e&&e.message);state.itens=genItens();}
   ['incc','cdi','pctcdi'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='incc')$('useObs').checked=false;render();}));
   mercadoConfirmado=loadMercadoLocal();   // cache: abre rápido; o banco manda logo abaixo
   $('m2mkt').addEventListener('input',()=>{espelhaM2('slider');saveMercado();render();});
@@ -864,11 +893,15 @@ async function bootstrap(){
   setupDropzone('dzPag','filePag','catPag','upPag');
   setupDropzone('dzNeg','fileNeg','catNeg','upNeg');
   fillParcelaSelects();
-  await loadDocs();
+  try{await loadDocs();}catch(e){docs=[];bancoFalhou=true;console.warn('documentos indisponiveis:',e&&e.message);}
   try{const rc=await fetch('cdi.json?'+Date.now());if(rc.ok){const j=await rc.json();if(j&&j.cdi_aa){$('cdi').value=j.cdi_aa;const d=j.atualizado_em?new Date(j.atualizado_em).toLocaleDateString('pt-BR'):'';$('cdiFonte').innerHTML='🔗 CDI ancorado no Banco Central (CDI anualizado): <b>'+PCT(parseFloat(j.cdi_aa),2)+' a.a.</b>'+(d?' · atualizado em '+d:'')+'. O robô atualiza 1×/mês; mexa o slider para simular outro cenário.';}}}catch(e){}
   try{const ri=await fetch('indices.json?'+Date.now());if(ri.ok){const j=await ri.json();if(j&&j.ipca)SERIES={ipca:j.ipca||{},cdi:j.cdi||{},atualizado_em:j.atualizado_em};}}catch(e){}
-  if(await loadMercadoDB())mercadoConfirmado=true;   // premissa do banco vence o cache local
-  $('stamp').textContent='🟢 dados ao vivo (Supabase)';
+  try{if(await loadMercadoDB())mercadoConfirmado=true;}catch(e){bancoFalhou=true;}  // premissa do banco vence o cache local
+  // o selo diz a verdade sobre o estado das dependencias, em vez de afirmar
+  // "dados ao vivo" com o banco fora do ar
+  const faltas=[]; if(!SB_OK||sb.__offline||bancoFalhou)faltas.push('banco'); if(!CHART_OK)faltas.push('gráficos');
+  $('stamp').textContent=faltas.length?('⚠️ sem '+faltas.join(' e ')+' — números calculados localmente')
+                                      :'🟢 dados ao vivo (Supabase)';
   updateAuthUI();
   render();
   renderDocs();
@@ -876,7 +909,7 @@ async function bootstrap(){
 
 async function loadFromDB(){
   const {data,error}=await sb.from('ocean504_parcelas').select('*').order('id');
-  if(error){console.error('loadFromDB erro:',error);setSave('⚠️ banco indisponível — mostrando parcelas base');state.itens=genItens();return;}
+  if(error){bancoFalhou=true;console.error('loadFromDB erro:',error);setSave('⚠️ banco indisponível — mostrando parcelas base');state.itens=genItens();return;}
   if(!data||!data.length){console.warn('loadFromDB vazio — usando parcelas base');state.itens=genItens();return;}
   state.itens=data.map(r=>({...r,
     valor_pago:r.valor_pago!=null?+r.valor_pago:null,
@@ -945,6 +978,23 @@ function updateAuthUI(){
   if(canEdit)ensurePdfjs().catch(()=>{}); // pré-aquece o leitor de PDF p/ o 1º upload validar na hora
 }
 
+// Campos numericos aceitam qualquer coisa digitada. Sem limite, corretagem de 100%
+// zera o (1-corret) do denominador e o painel exibe "R$ infinito"; acima de 100%
+// exibe precos NEGATIVOS; e m2 negativo faz Math.pow de base negativa virar NaN,
+// que chegava na tela como um plausivel "0,00% a.a.". Clamp na entrada e a defesa.
+function clampNum(v,min,max,fallback){
+  const n=parseFloat(v);
+  if(!isFinite(n))return fallback;
+  return Math.min(max,Math.max(min,n));
+}
+// le o campo, corrige o proprio input quando o valor esta fora da faixa (o usuario
+// ve a correcao acontecer em vez de um numero fantasma) e devolve o valor saneado
+function campoNum(id,min,max,fallback){
+  const el=$(id); if(!el)return fallback;
+  const v=clampNum(el.value,min,max,fallback);
+  if(el.value!==''&&parseFloat(el.value)!==v&&document.activeElement!==el)el.value=v;
+  return v;
+}
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
 function fillParcelaSelects(){
@@ -1274,6 +1324,7 @@ function compute(){
 
 const gridc='#ECF1F1';
 function initCharts(){
+  if(!CHART_OK)return;          // sem a lib os numeros continuam; so os graficos faltam
   Chart.defaults.font.family="Inter";Chart.defaults.font.size=12;Chart.defaults.color='#5C7178';
   charts.acum=new Chart($('cAcum'),{plugins:[ChartDataLabels],data:{labels:[],datasets:[
     {type:'line',label:'Projetado',data:[],borderColor:'#9FB7BC',borderDash:[5,4],fill:false,tension:.25,pointRadius:0},
@@ -1423,7 +1474,7 @@ function renderTable(c){
     const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
     const meio=r.valor_base/2;
     const tr=document.createElement('tr');const _st=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));tr.className=(r.tipo==='semestral'?'semestral ':'')+_st;
-    tr.innerHTML=`<td data-label="Parcela"><b>${r.ref}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+r.obs+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
+    tr.innerHTML=`<td data-label="Parcela"><b>${esc(r.ref)}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+esc(r.obs)+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
       <td data-label="Vencimento">${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}</td>
       <td class="metade" data-label="50%">${isAp?'—':BRL(meio,2)}</td>
@@ -1450,6 +1501,8 @@ function renderTable(c){
 }
 
 function renderCharts(c){
+  if(!charts.acum)return;
+
   const im=c.imP,s=c.s;
   const evs=[...state.itens].filter(r=>r.vencimento).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
   const labels=[],pA=[],rA=[];let pa=0,ra=0;
@@ -1523,12 +1576,14 @@ function analisar(c,vendaOverride,entregaOverride){
   totalNom+=custoEscrit;acumula(custoEscrit,ENT);if(custoEscrit)flows.push({t:anosE,cf:-custoEscrit});
   // m2 de hoje = a premissa de mercado que os socios compartilham (slider -> Supabase).
   // Antes era a constante M2BASE, que nao respondia ao slider — ver nota no commit.
-  const valorHoje=mercadoParams().m2*AREA, anosHoje=Math.max(0.08,yearsBetween(HOJE,ENT));
+  const _m2=mercadoParams().m2;
+  const valorHoje=_m2>0?_m2*AREA:null, anosHoje=Math.max(0.08,yearsBetween(HOJE,ENT));
   // --- cenário de saída (revenda) ---
   const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
-  const corret=(parseFloat($('corret').value)||0)/100;
-  const custoVenda=parseFloat($('custoVenda').value)||0;
-  const taxaCessao=parseFloat($('taxaCessao').value)||0;
+  // corretagem em [0,90]: em 100 o preco de venda dividia por zero
+  const corret=campoNum('corret',0,30,0)/100;
+  const custoVenda=campoNum('custoVenda',0,100000000,0);
+  const taxaCessao=campoNum('taxaCessao',0,100000000,0);
   const isentoG=$('irganho').value==='isento';
   // custo fixo de saida = cartorio/juridico + taxa de cessao (esta so quando ha cessao)
   const custoFixoSaida=custoVenda+(cessao?taxaCessao:0);
@@ -1543,7 +1598,10 @@ function analisar(c,vendaOverride,entregaOverride){
   if(venda){const f2=flows.concat([{t:anosE,cf:liquido}]);tir=irr(f2);moic=liquido/totalNom;if(tir!=null)tirReal=(1+tir)/(1+ipca)-1;}
   return {ENT,anosE,taxa,isento,pct:s.pctcdi,totalNom,vfRF,nominalParc,pagoOuProj,aportesTot,
     correcao:pagoOuProj-nominalParc,custoOp:vfRF-totalNom,valorHoje,breakeven:vfRF,
-    breakM2:precoMinRF/AREA,valorizNec:Math.pow(precoMinRF/valorHoje,1/anosHoje)-1,inccProxy:pagoOuProj,
+    breakM2:precoMinRF/AREA,
+    // sem m2 informado nao ha de onde partir: null e a UI mostra o pedido, nao um numero
+    valorizNec:(valorHoje&&precoMinRF>0)?Math.pow(precoMinRF/valorHoje,1/anosHoje)-1:null,
+    inccProxy:pagoOuProj,
     venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows,
     cessao,custoEscrit,taxaCessao,custoFixoSaida,anosHoje,precoParaLiquidoPub:precoParaLiquido,
     corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA,precoMinINCC,precoMinCDI,precoMinRF,realizado,projetado};
@@ -1551,13 +1609,15 @@ function analisar(c,vendaOverride,entregaOverride){
 
 function analisarRenda(a){
   const Pent=a.venda;
-  const alug=parseFloat($('alug').value)||0;
-  const reaj=(parseFloat($('reajAlug').value)||0)/100;
-  const vac=(parseFloat($('vac').value)||0)/100;
-  const opex=(parseFloat($('opex').value)||0)/100;
-  const fixo=parseFloat($('custoFixo').value)||0;
-  const irA=(parseFloat($('irAlug').value)||0)/100;
-  const H=Math.max(1,Math.round(parseFloat($('horizonte').value)||5));
+  // percentuais do modulo de renda tambem precisam de faixa: vacancia de 200%
+  // ou IR de 300% produziam receita negativa sem qualquer sinal na tela
+  const alug=campoNum('alug',0,10000000,0);
+  const reaj=campoNum('reajAlug',-50,100,0)/100;
+  const vac=campoNum('vac',0,100,0)/100;
+  const opex=campoNum('opex',0,100,0)/100;
+  const fixo=campoNum('custoFixo',0,10000000,0);
+  const irA=campoNum('irAlug',0,100,0)/100;
+  const H=Math.round(campoNum('horizonte',1,50,5));
   const val=(parseFloat($('valoriz').value)||0)/100;
   if(!alug||!Pent)return {ok:false,H};
   const liqAno=k=>{const b=alug*12*Math.pow(1+reaj,k-1);const e=b*(1-vac);const n=e*(1-opex)-fixo;return n*(1-irA);};
@@ -1606,7 +1666,11 @@ const MKKEY='ocean504_mercado', NOMES={'victorpaim@pasf.com.br':'Victor','eduard
 let mercadoConfirmado=false, mercadoAutor=null, _mkTimer=null;
 // O m2 vem do CAMPO (m2num), nao do slider: o slider tem teto de 25.000 e passo
 // de 100, e serve para simular; o campo aceita o valor exato de uma avaliacao.
-function mercadoParams(){return {m2:+($('m2num').value||0)||10000, vz:(+($('valorizM').value||0))/100};}
+// m2<=0 devolve 0 = "nao informado". Antes o ||10000 fazia o campo mostrar 0
+// enquanto o calculo usava 10.000 por baixo — numero fantasma, sem aviso.
+function mercadoParams(){
+  return {m2:campoNum('m2num',0,10000000,0), vz:clampNum($('valorizM').value,-50,100,0)/100};
+}
 // mantem campo e slider apontando para o mesmo numero (o slider satura no range)
 function espelhaM2(origem){
   const sl=$('m2mkt'), nu=$('m2num');
@@ -1656,13 +1720,17 @@ function syncMercado(){
   const p=mercadoParams(), ENT=getEntrega();
   // a taxa so existe no caminho da cessao: escondida na escritura para nao poluir
   $('slTaxaCessao').style.display=($('saida').value==='cessao')?'':'none';
-  const vend=AREA*p.m2*Math.pow(1+p.vz,Math.max(0,yearsBetween(new Date(),ENT)));
+  const temM2=p.m2>0;
+  const vend=temM2?AREA*p.m2*Math.pow(1+p.vz,Math.max(0,yearsBetween(new Date(),ENT))):0;
   $('aval').value=Math.round(vend);
-  $('m2mktV').innerHTML=BRL(p.m2)+'<small> / m²</small>';
+  $('m2mktV').innerHTML=temM2?BRL(p.m2)+'<small> / m²</small>':'<small style="font-size:15px">informe o m²</small>';
   if(document.activeElement!==$('m2num'))espelhaM2('campo');   // nao atrapalha quem digita
   $('valorizV').innerHTML=(p.vz*100).toLocaleString('pt-BR',{minimumFractionDigits:1})+'<small>% a.a.</small>';
-  $('vendaEstV').textContent=BRL(vend);
+  $('vendaEstV').textContent=temM2?BRL(vend):'—';
   const av=$('m2Aviso');
+  if(!temM2){av.className='hq-note warn';
+    av.textContent='⚠ Informe o valor do m² de mercado — sem ele o painel não calcula a valorização necessária.';
+    return 0;}
   if(mercadoConfirmado){av.className='hq-note';
     let cred='';
     if(mercadoAutor&&mercadoAutor.por){const d=new Date(mercadoAutor.em);
@@ -1760,6 +1828,7 @@ function renderResumo(c){
       '<small>'+(pos?'ganhou':'perdeu')+'</small></div></div>';}).join('');
   // --- corrida ---
   const S=serieCorrida(c), ch=charts.corrida;
+  if(!ch)return;
   if(ch){ch.$iHoje=S.iHoje;ch.data.labels=S.labels;
     ch.data.datasets[0].data=S.eq;ch.data.datasets[1].data=S.cdi;
     ch.data.datasets[2].data=S.rf;ch.data.datasets[3].data=S.incc;ch.data.datasets[4].data=S.ipca;
@@ -1803,7 +1872,7 @@ function renderPlacar(c){
   $('plEmp').textContent=BRL(a.precoMinRF);
   $('plEmpS').innerHTML='<b>'+BRL(a.precoMinRF/AREA)+'/m²</b> · já sem corretagem e IR';
 
-  const alvoM2=a.precoMinRF/AREA, cagr=a.valorizNec;
+  const alvoM2=a.precoMinRF/AREA, cagr=a.valorizNec, temM2=(m2>0&&cagr!=null);
   const mk=$('plMark'), hd=$('plHead'), sb=$('plSub');
   if(a.venda>0){
     const bateu=a.liquido>=a.vfRF, dif=a.liquido-a.vfRF;
@@ -1812,10 +1881,18 @@ function renderPlacar(c){
                         :'Vendendo a '+BRL(a.venda)+', a renda fixa ganha do imóvel';
     sb.innerHTML='Sobram <b>'+BRL(a.liquido)+'</b> líquidos contra <b>'+BRL(a.vfRF)+
       '</b> da LCI — '+(bateu?'<b>'+BRL(dif)+'</b> a mais':'<b>'+BRL(-dif)+'</b> a menos')+
-      '. Sua parte: <b>'+BRL(a.liquido*PV)+'</b>.<br>Para empatar, o m² precisa sair de <b>'+
-      BRL(m2)+'</b> para <b>'+BRL(alvoM2)+'</b> — <b>'+PCT(cagr*100,2)+' a.a.</b> por '+
-      Math.max(0.08,a.anosHoje).toFixed(1)+' anos.';
+      '. Sua parte: <b>'+BRL(a.liquido*PV)+'</b>.'+
+      (temM2?'<br>Para empatar, o m² precisa sair de <b>'+BRL(m2)+'</b> para <b>'+BRL(alvoM2)+
+        '</b> — <b>'+PCT(cagr*100,2)+' a.a.</b> por '+Math.max(0.08,a.anosHoje).toFixed(1)+' anos.'
+       :'<br><b>Informe o m² de mercado</b> para ver quanto ele precisa subir.');
   }else{
+    if(!temM2){
+      mk.textContent='◆'; mk.className='verd-m';
+      hd.innerHTML='Falta o m² de mercado';
+      sb.innerHTML='Para empatar com a renda fixa é preciso vender por <b>'+BRL(a.precoMinRF)+
+        '</b> (<b>'+BRL(alvoM2)+'/m²</b>). Informe o <b>valor do m² hoje</b> acima e o painel '+
+        'calcula quanto ele precisa subir por ano.';
+    }else{
     const folgado=cagr<=0.06;
     mk.textContent=folgado?'▲':(cagr<=0.10?'◆':'▼');
     mk.className='verd-m '+(folgado?'pos':(cagr<=0.10?'':'neg'));
@@ -1824,15 +1901,17 @@ function renderPlacar(c){
       PCT(cagr*100,2)+' ao ano por '+(a.anosE).toFixed(1)+' anos. '+
       (cagr>0.10?'<b>Exigente</b> — a tese depende quase toda de valorização.'
                 :'Informe o valor de venda esperado para ver o veredito completo.');
+    }
   }
   // meta: 50% acima do parametro 2. E alvo, nao piso — e a distancia diz o quanto.
   const meta=a.vfRF*1.5, pMeta=a.precoParaLiquidoPub?a.precoParaLiquidoPub(meta):null;
-  if(pMeta){
-    const cagrMeta=Math.pow((pMeta/AREA)/m2,1/Math.max(0.08,a.anosHoje))-1;
+  if(pMeta&&isFinite(pMeta)&&pMeta>0){
+    const cagrMeta=temM2?Math.pow((pMeta/AREA)/m2,1/Math.max(0.08,a.anosHoje))-1:null;
     $('plMeta').innerHTML='🎯 <b>Meta (não é piso):</b> 50% acima da renda fixa = vender por <b>'+
-      BRL(pMeta)+'</b> (<b>'+BRL(pMeta/AREA)+'/m²</b>), o que exige <b>'+PCT(cagrMeta*100,1)+
-      '</b> ao ano. Para comparação, o piso exige '+PCT(cagr*100,2)+' a.a. — a meta é referência de ambição, não critério de decisão.';
-  }
+      BRL(pMeta)+'</b> (<b>'+BRL(pMeta/AREA)+'/m²</b>)'+
+      (cagrMeta!=null?', o que exige <b>'+PCT(cagrMeta*100,1)+'</b> ao ano. Para comparação, o piso exige '+
+        PCT(cagr*100,2)+' a.a.':'')+' — a meta é referência de ambição, não critério de decisão.';
+  }else{$('plMeta').innerHTML='';}
 }
 
 /* ===== cockpit: os 6 números que decidem + camada de risco ===== */
@@ -1842,10 +1921,10 @@ function renderCockpit(c,a){
   const liqDe=P=>{const ap=P*(1-a.corret)-a.custoFixoSaida;
     return ap-(a.isentoG?0:0.15*Math.max(0,ap-a.totalNom));};
   // 1. desconto na planta: comprei a preço de custo, mercado está em quanto?
-  const m2Contrato=APTO/AREA, desc=1-m2Contrato/p.m2;
+  const m2Contrato=APTO/AREA, temM2=p.m2>0, desc=temM2?1-m2Contrato/p.m2:null;
   // 2. quanto o m² precisa subir por ano, a partir de hoje, para empatar
-  const cagrRF=Math.pow((a.precoMinRF/AREA)/p.m2,1/anos)-1,
-        cagrIP=Math.pow((a.precoMinIPCA/AREA)/p.m2,1/anos)-1;
+  const cagrRF=temM2?Math.pow((a.precoMinRF/AREA)/p.m2,1/anos)-1:null,
+        cagrIP=temM2?Math.pow((a.precoMinIPCA/AREA)/p.m2,1/anos)-1:null;
   // 3. margem de segurança: quanto o preço pode cair antes de virar prejuízo real
   const marg=a.venda>0?(a.venda-a.precoMinIPCA)/a.venda:null;
   // 4. prêmio sobre a renda fixa: um ativo travado 5 anos precisa pagar mais que o CDI
@@ -1867,15 +1946,17 @@ function renderCockpit(c,a){
   const card=(cls,l,v,s,tag)=>'<div class="ck '+(cls||'')+'"><div class="l">'+l+'</div><div class="v">'+v+
     '</div><div class="s">'+s+'</div>'+(tag?'<div class="tag">'+tag+'</div>':'')+'</div>';
   let h='';
-  h+=card(sem(desc,.15,.05),'Desconto na planta',PCT(desc*100,1),
+  h+=temM2?card(sem(desc,.15,.05),'Desconto na planta',PCT(desc*100,1),
     'Contrato a <b>'+BRL(m2Contrato)+'/m²</b> · mercado a <b>'+BRL(p.m2)+'/m²</b>',
-    desc>=.15?'alfa de entrada':(desc>=.05?'desconto magro':'sem desconto'));
-  h+=card(sem(cagrRF,.06,.10,true),'O m² precisa subir',
+    desc>=.15?'alfa de entrada':(desc>=.05?'desconto magro':'sem desconto'))
+    :card('','Desconto na planta','—','Contrato a <b>'+BRL(m2Contrato)+'/m²</b> · informe o m² de mercado');
+  h+=temM2?card(sem(cagrRF,.06,.10,true),'O m² precisa subir',
     cagrRF<=0?'nada':PCT(cagrRF*100,1)+' a.a.',
     cagrRF<=0?'O m² de hoje (<b>'+BRL(p.m2)+'</b>) já cobre a renda fixa mesmo sem valorizar mais.'
       :'ao ano, para empatar com a renda fixa. Só para bater a inflação: <b>'+
        (cagrIP<=0?'nada':PCT(cagrIP*100,1)+' a.a.')+'</b>',
-    cagrRF<=0?'já está no ponto':(cagrRF<=.06?'exigência baixa':(cagrRF<=.10?'exigente':'muito exigente')));
+    cagrRF<=0?'já está no ponto':(cagrRF<=.06?'exigência baixa':(cagrRF<=.10?'exigente':'muito exigente')))
+    :card('','O m² precisa subir','—','Informe o m² de mercado para calcular.');
   h+=marg!=null?card(sem(marg,.15,0),'Margem de segurança',PCT(marg*100,0),
     'O preço pode cair até <b>'+BRL(a.venda-a.precoMinIPCA)+'</b> antes de você perder poder de compra.',
     marg>=.15?'folga confortável':(marg>=0?'folga apertada':'já está abaixo do piso'))
@@ -1917,7 +1998,7 @@ function renderCusto(c){
   const a=analisar(c);
   let comp='<b>Sai do bolso:</b> nominal '+BRL(a.nominalParc)+' + INCC '+BRL(a.correcao);
   if(a.aportesTot>0)comp+=' + aportes extras '+BRL(a.aportesTot);
-  comp+=(a.cessao?' + <i>sem ITBI/registro (saída por cessão)</i>':' + ITBI/registro '+BRL(a.custoEscrit))+' = <b>'+BRL(a.totalNom)+'</b>. Para empatar com a renda fixa, vender a <b>'+BRL(a.breakM2)+'/m²</b> (o m² precisa subir '+PCT(a.valorizNec*100,1)+' a.a. a partir de hoje).';
+  comp+=(a.cessao?' + <i>sem ITBI/registro (saída por cessão)</i>':' + ITBI/registro '+BRL(a.custoEscrit))+' = <b>'+BRL(a.totalNom)+'</b>. Para empatar com a renda fixa, vender a <b>'+BRL(a.breakM2)+'/m²</b>'+(a.valorizNec!=null?' (o m² precisa subir '+PCT(a.valorizNec*100,1)+' a.a. a partir de hoje)':'')+'.';
   $('cdComp').innerHTML=comp;
   $('cdData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
   $('cdTotal').textContent=BRL(a.totalNom);
@@ -2016,6 +2097,8 @@ function renderSens(c){
 }
 
 function renderEvol(c){
+  if(!charts.evol)return;
+
   const s=c.s, taxa=s.cdi*s.pctcdi, hoje=new Date();
   const pagos=state.itens.filter(r=>r.valor_pago!=null&&(r.data_pagamento||r.vencimento))
     .sort((a,b)=>(a.data_pagamento||a.vencimento).localeCompare(b.data_pagamento||b.vencimento));
@@ -2041,7 +2124,13 @@ function setupTabs(){
   });
 }
 
-bootstrap();
+bootstrap().catch(e=>{
+  // ultima rede de seguranca: melhor um painel com os numeros base do que uma pagina morta
+  console.error('bootstrap falhou:',e);
+  try{ if(!state.itens||!state.itens.length)state.itens=genItens();
+       const st=$('stamp'); if(st)st.textContent='⚠️ modo degradado — parte dos dados não carregou';
+       render(); }catch(e2){console.error('render de emergencia falhou:',e2);}
+});
 </script>
 </body>
 </html>
