@@ -395,6 +395,7 @@ footer b{color:var(--ink)}
 .sens-col{overflow-x:auto}
 .modal h3{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-bottom:4px}
 .modal .modal-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.bolv{display:block;font-size:10.5px;color:var(--ocean2);font-weight:600;margin-top:2px}
 .pixwarn{margin-top:8px;font-size:12.5px;color:var(--coral);background:rgba(224,122,95,.10);padding:8px 10px;border-radius:8px;line-height:1.5}
 .modal-sub.ok{color:var(--ocean2);background:rgba(28,124,140,.08);padding:8px 10px;border-radius:8px;line-height:1.5}
 .modal-sub.warn{color:var(--coral);background:rgba(224,122,95,.08);padding:8px 10px;border-radius:8px;line-height:1.5}
@@ -625,7 +626,7 @@ footer b{color:var(--ink)}
   <div class="controls">
     <h2>Projeção, renda fixa e cenário de venda</h2>
     <div class="obsline" id="obsLine">INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)</div>
-    <label class="toggle"><input type="checkbox" id="useObs" checked> Usar o INCC real que já paguei (recomendado). Desmarque para simular um cenário "e se".</label>
+    <label class="toggle"><input type="checkbox" id="useObs" checked> Usar o INCC real medido nos boletos e pagamentos (recomendado). Desmarque para simular um cenário "e se".</label>
     <div class="sliders">
       <div class="sl" id="slIncc"><label>INCC a.a. — projeção <span class="val" id="vIncc">6,7%</span></label><input type="range" id="incc" min="3" max="12" step="0.1" value="6.7"></div>
       <div class="sl"><label>CDI a.a. <span class="val" id="vCdi">14,3%</span></label><input type="range" id="cdi" min="8" max="16" step="0.05" value="14.25"></div>
@@ -933,7 +934,8 @@ async function saveRow(row){
   setSave('Salvando…');
   row.updated_by=currentEmail; row.updated_at=new Date().toISOString();
   const {error}=await sb.from('ocean504_parcelas')
-    .update({valor_pago:row.valor_pago,data_pagamento:row.data_pagamento||null,juros:row.juros,multa:row.multa,obs:row.obs,updated_by:row.updated_by,updated_at:row.updated_at})
+    .update({valor_pago:row.valor_pago,data_pagamento:row.data_pagamento||null,juros:row.juros,multa:row.multa,obs:row.obs,
+             valor_boleto:row.valor_boleto??null,boleto_data:row.boleto_data||null,updated_by:row.updated_by,updated_at:row.updated_at})
     .eq('id',row.id);
   setSave(error?('Erro: '+error.message):'Salvo ✓ '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
 }
@@ -1122,6 +1124,13 @@ async function uploadFiles(fileList,catId,statusId,inpId){
           const vLido=lido?melhorValor(lido.valores,m,1.15):null;
           const vb=vLido!=null?vLido:valorEsperado(m);   // sem leitura confiavel: projeta pelo INCC
           pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100,estimado:vLido==null};
+          // registra o valor COBRADO — a parcela NAO vira paga: isso so acontece
+          // quando chega o comprovante. So grava valor lido de verdade, nunca projecao.
+          if(vLido!=null&&m.valor_pago==null&&num(m.valor_boleto)!==vLido){
+            m.valor_boleto=vLido;
+            m.boleto_data=new Date().toISOString().slice(0,10);
+            await saveRow(m);
+          }
         }else{
           // nao identificou: diz POR QUE antes de mostrar a lista
           if(!lido){
@@ -1430,17 +1439,36 @@ function sv(){return{incc:+$('incc').value/100,cdi:+$('cdi').value/100,pctcdi:+$
 function getEntrega(){const sel=$('entrega').value;const d=sel==='custom'?($('entregaData').value||'2031-12-01'):sel;return new Date(d+'T00:00:00');}
 function aliqIR(anos){return anos>2?0.15:anos>1?0.175:anos>0.5?0.20:0.225;}
 
+// Um boleto EM DIA ja mede o INCC real: e a base do contrato mais a correcao
+// acumulada, antes de qualquer pagamento. Antes so parcelas pagas alimentavam a
+// projecao — e como os 3 sinais foram pagos sem INCC, o painel projetava pelo
+// slider (chute) tendo a medida real parada dentro de um PDF.
+// Boleto fora do prazo NAO entra: traz juros de 1% a.m. e multa de 2%, que
+// virariam "inflacao" e contaminariam a projecao de todas as parcelas restantes.
+function boletoEmDia(r){
+  if(r.valor_boleto==null||!(num(r.valor_boleto)>0))return false;
+  if(!r.boleto_data||!r.vencimento)return false;
+  return String(r.boleto_data)<=String(r.vencimento);
+}
 function inccObs(){
-  const taxas=[];let somaIncc=0;
-  state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago!=null).forEach(r=>{
-    const incc=num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa);
-    somaIncc+=incc;const n=nOf(r.vencimento);
-    // só usa a parcela na taxa de projeção se a taxa implícita for plausível
-    // (protege contra lançamentos absurdos, ex.: pagar R$ 0,01 -> INCC de -26%/mês)
-    if(n>=1&&r.valor_base>0){const tx=Math.pow(1+incc/r.valor_base,1/n)-1;if(isFinite(tx)&&tx>-0.02&&tx<0.05)taxas.push(tx);}
+  const taxas=[];let somaIncc=0,nBoletos=0;
+  const push=(incc,base,n)=>{
+    // protege contra lancamento absurdo (ex.: pagar R$ 0,01 -> INCC de -26%/mes)
+    if(n>=1&&base>0){const tx=Math.pow(1+incc/base,1/n)-1;
+      if(isFinite(tx)&&tx>-0.02&&tx<0.05){taxas.push(tx);return true;}}
+    return false;
+  };
+  state.itens.filter(r=>r.tipo!=='aporte').forEach(r=>{
+    const base=num(r.valor_base), n=nOf(r.vencimento);
+    if(r.valor_pago!=null){
+      const incc=num(r.valor_pago)-base-num(r.juros)-num(r.multa);
+      somaIncc+=incc; push(incc,base,n);
+    }else if(boletoEmDia(r)){
+      if(push(num(r.valor_boleto)-base,base,n))nBoletos++;
+    }
   });
   const tm=taxas.length?taxas.reduce((a,b)=>a+b,0)/taxas.length:null;
-  return {mensal:tm,anual:tm!=null?Math.pow(1+tm,12)-1:null,nObs:taxas.length,somaIncc};
+  return {mensal:tm,anual:tm!=null?Math.pow(1+tm,12)-1:null,nObs:taxas.length,somaIncc,nBoletos};
 }
 function taxaProjMensal(){const s=sv(),o=inccObs();
   if($('useObs').checked&&o.mensal!=null)return o.mensal;
@@ -1568,12 +1596,19 @@ function render(){
   const c=compute(),s=c.s;
   $('vIncc').textContent=PCT(s.incc*100,1);
   $('vCdi').textContent=PCT(s.cdi*100,1);$('vPct').textContent=Math.round(s.pctcdi*100)+'%';
-  if(c.obs.anual!=null){$('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> (média de '+c.obs.nObs+' parcela'+(c.obs.nObs>1?'s':'')+' paga'+(c.obs.nObs>1?'s':'')+')'+($('useObs').checked?' — em uso na projeção':' — slider em uso');}
+  if(c.obs.anual!=null){
+    // a origem importa: boleto em dia mede o INCC antes do pagamento
+    const nb=c.obs.nBoletos||0, np=c.obs.nObs-nb;
+    const partes=[];
+    if(np>0)partes.push(np+' pagamento'+(np>1?'s':''));
+    if(nb>0)partes.push(nb+' boleto'+(nb>1?'s':'')+' em dia');
+    $('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> (média de '+
+      partes.join(' + ')+')'+($('useObs').checked?' — em uso na projeção':' — slider em uso');}
   else{const np=state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago!=null).length;
     // já pode haver parcela paga sem taxa mensurável: a 1ª vence no mês-base (n=0)
     $('obsLine').innerHTML=np?'INCC observado: <b>—</b> ('+np+' parcela'+(np>1?'s':'')+' paga'+(np>1?'s':'')+
       ', mas ainda sem correção a medir — a 1ª vence no mês-base. Usando o slider.)'
-      :'INCC observado: <b>—</b> (sem parcelas pagas ainda — usando o slider)';}
+      :'INCC observado: <b>—</b> (sem pagamento nem boleto medido ainda — usando o slider)';}
   $('slIncc').classList.toggle('muted',$('useObs').checked&&c.obs.mensal!=null);
   const npagas=c.npagas;
   $('kContrato').textContent=BRL(c.baseTotal);
@@ -1610,12 +1645,16 @@ function renderTable(c){
     const vencida=!isAp&&r.valor_pago==null&&r.vencimento&&new Date(r.vencimento+'T00:00:00')<hoje;
     const incc=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa):null;
     const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
-    const meio=r.valor_base/2;
+    // o Pix ao socio e metade do que SERA PAGO: o boleto ja vem com INCC.
+    // Usar a base do contrato subestimava (R$ 1.727,31 contra R$ 1.766,29 reais).
+    const temBol=r.valor_boleto!=null&&num(r.valor_boleto)>0;
+    const efetivo=temBol?num(r.valor_boleto):num(r.valor_base);
+    const meio=efetivo/2;
     const tr=document.createElement('tr');const _st=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));tr.className=(r.tipo==='semestral'?'semestral ':'')+_st;
     tr.innerHTML=`<td data-label="Parcela"><b>${esc(r.ref)}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+esc(r.obs)+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
       <td data-label="Vencimento">${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
-      <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}</td>
-      <td class="metade" data-label="50%">${isAp?'—':BRL(meio,2)}</td>
+      <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}${!isAp&&temBol?'<br><span class="bolv">boleto '+BRL(efetivo,2)+'</span>':''}</td>
+      <td class="metade" data-label="50%">${isAp?'—':BRL(meio,2)}${!isAp&&temBol?'<br><span class="bolv">do boleto</span>':''}</td>
       <td data-label="Valor pago"><input type="text" inputmode="decimal" value="${moneyIn(r.valor_pago)}" data-raw="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
       <td data-label="Data pgto"><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
       <td data-label="Juros">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.juros)+'" data-raw="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
