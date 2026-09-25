@@ -811,7 +811,11 @@ const num=x=>x==null||x===''?0:(+x||0);
 function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const add=(ref,tipo,v,b)=>a.push({id:id++,ref,tipo,vencimento:v,valor_base:b,valor_pago:null,data_pagamento:null,juros:null,multa:null,obs:null});
   [[2026,6],[2026,7],[2026,8]].forEach((x,i)=>add('Sinal '+(i+1),'sinal',d(x[0],x[1],30),23750.53));
-  let y=2026,m=9;for(let i=0;i<55;i++){add('Mensal '+(i+1),'mensal',d(y,m,11),3454.62);m++;if(m>12){m=1;y++;}}
+  // mensais vencem dia 25 (conferido contra o banco e contra um boleto real);
+  // sinais no dia 30 e semestrais no dia 1. Este fallback so aparece com o banco
+  // fora do ar, mas precisa espelhar o contrato — com o dia errado a parcela
+  // aparecia como vencida 14 dias antes e o casamento de comprovante por data falhava.
+  let y=2026,m=9;for(let i=0;i<55;i++){add('Mensal '+(i+1),'mensal',d(y,m,25),3454.62);m++;if(m>12){m=1;y++;}}
   [[2026,11],[2027,5],[2027,11],[2028,5],[2028,11],[2029,5],[2029,11]].forEach((x,i)=>add('Semestral '+(i+1),'semestral',d(x[0],x[1],1),30536.37));
   return a;}
 
