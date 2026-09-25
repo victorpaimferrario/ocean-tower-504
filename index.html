@@ -1105,8 +1105,9 @@ async function uploadFiles(fileList,catId,statusId,inpId){
         const r=lido?casarParcelaNivel(lido):null;
         if(r){
           // identificou: pede um OK rapido em vez de vincular calado, com o motivo
-          const motivo=r.nivel===1?'vencimento e valor conferem'
-                      :(r.nivel===2?'o vencimento confere':'o valor confere');
+          const motivo=r.nivel===0?'o boleto informa o número da parcela'
+                      :(r.nivel===1?'vencimento e valor conferem'
+                      :(r.nivel===2?'o vencimento confere':'o valor confere'));
           const esc2=await askParcela(file.name,{it:r.it,motivo});
           if(esc2==='__skip__'){upMsg(st,'↪️ '+file.name+' pulado');continue;}
           const m=state.itens.find(x=>String(x.id)===String(esc2))||r.it;
@@ -1311,11 +1312,33 @@ function _casaValor(valores,it){
   const min=Math.min(base,proj)*0.98, max=Math.max(base,proj)*1.15;
   return valores.some(v=>v>=min&&v<=max);
 }
-// devolve {it, nivel} — nivel 1 e o unico que confere data E valor
+// O boleto da incorporadora traz "Numero da parcela/Total de Parcelas 1/55".
+// Isso identifica a parcela DIRETAMENTE — nao ha o que deduzir. Descoberto ao
+// testar com um boleto real: o layout separa o rotulo "Vencimento" da data, entao
+// a extracao linear nao associa os dois e o casamento caia no nivel fraco (valor).
+// O total informado (55) diz o tipo: e a serie que tem 55 parcelas.
+function casarPorNumero(texto){
+  if(!texto)return null;
+  const m=/total\s+de\s+parcelas\s*(\d{1,3})\s*\/\s*(\d{1,3})/i.exec(texto);
+  if(!m)return null;
+  const n=+m[1], total=+m[2];
+  if(!(n>0&&total>0&&n<=total))return null;
+  const porTipo={};
+  state.itens.forEach(it=>{if(it.tipo==='aporte')return;(porTipo[it.tipo]=porTipo[it.tipo]||[]).push(it);});
+  for(const tipo in porTipo){
+    const lista=porTipo[tipo];
+    if(lista.length===total&&lista[n-1])return lista[n-1];
+  }
+  return null;
+}
+
+// devolve {it, nivel} — nivel 0 e o boleto dizendo qual parcela e; 1 confere data E valor
 function casarParcelaNivel(lido){
   if(!lido)return null;
   const {datas,valores}=lido;
   const parc=state.itens.filter(it=>it.tipo!=='aporte');
+  const porNum=casarPorNumero(lido.texto);
+  if(porNum)return {it:porNum,nivel:0};
   for(const it of parc){ if(datas.includes(it.vencimento)&&_casaValor(valores,it)===true)return {it,nivel:1}; }
   for(const it of parc){ if(datas.includes(it.vencimento)&&_casaValor(valores,it)===null)return {it,nivel:1}; }
   for(const it of parc){ if(datas.includes(it.vencimento))return {it,nivel:2}; }
