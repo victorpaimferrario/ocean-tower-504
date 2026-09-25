@@ -359,10 +359,17 @@ footer b{color:var(--ink)}
   table.pg td:last-child{border-bottom:none}
   table.pg td::before{content:attr(data-label);font-weight:600;color:var(--muted);font-size:13px;text-align:left;flex:0 0 auto}
   table.pg td.sec{display:none}
+  /* a coluna da conta quebra em bloco: o rotulo em cima, a conta ocupando a largura */
+  table.pg td.contac{display:block;text-align:left}
+  table.pg td.contac.vazia{display:none}
+  table.pg td.contac::before{display:block;margin-bottom:5px}
+  table.pg td.contac .conta{min-width:0}
+  table.pg td.contac .conta .cl{font-size:13px}
+  table.pg td.contac .conta .cx{font-size:11px}
   table.pg td:first-child{display:block;text-align:left;border-bottom:2px solid var(--line);padding:6px 4px 8px;font-size:16px}
   table.pg td:first-child::before{display:none}
   table.pg input{width:auto;max-width:62%}
-  table.pg input.dt{max-width:75%}
+  table.pg input.dt{max-width:88%}   /* dd/mm/aaaa a 16px pede ~118px; 75% deixava 2px de folga */
 }
 /* Abaixo de 430px duas colunas de controle nao cabem. Precisa vir DEPOIS das
    queries de 860px e 760px: mesma especificidade, vence a ultima declarada. */
@@ -395,6 +402,16 @@ footer b{color:var(--ink)}
 .sens-col{overflow-x:auto}
 .modal h3{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-bottom:4px}
 .modal .modal-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+/* a conta da parcela: cada linha explica a anterior e o total fecha embaixo */
+.conta{display:flex;flex-direction:column;gap:2px;min-width:170px;font-variant-numeric:tabular-nums}
+.conta .cl{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:11.5px;line-height:1.35}
+.conta .cl span{color:var(--muted)}
+.conta .cl b{font-weight:600;color:var(--ink);white-space:nowrap}
+.conta .cl.up b{color:var(--ocean2)}
+.conta .cl.dn b{color:var(--coral)}
+.conta .cl.tot{border-top:1px solid var(--line);padding-top:3px;margin-top:1px}
+.conta .cl.tot span,.conta .cl.tot b{font-weight:700;color:var(--ink)}
+.conta .cx{font-size:10px;color:var(--muted);text-align:right;margin-top:-1px}
 .bolv{display:block;font-size:10.5px;color:var(--ocean2);font-weight:600;margin-top:2px}
 .pixwarn{margin-top:8px;font-size:12.5px;color:var(--coral);background:rgba(224,122,95,.10);padding:8px 10px;border-radius:8px;line-height:1.5}
 .modal-sub.ok{color:var(--ocean2);background:rgba(28,124,140,.08);padding:8px 10px;border-radius:8px;line-height:1.5}
@@ -474,7 +491,7 @@ footer b{color:var(--ink)}
     <h3>Parcelas <span class="badge" id="cntPagas">0 pagas</span></h3>
     <p class="desc"><b>Valor pago</b> e <b>data</b> de cada boleto. Se atrasou, preencha <b>juros</b> e <b>multa</b> — o resto vira INCC automaticamente.</p>
     <div class="tbl-wrap"><table class="pg"><thead><tr>
-      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>Diferença</th><th>INCC embutido</th><th>Docs</th>
+      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>Composição</th><th>Docs</th>
     </tr></thead><tbody id="tbody"></tbody></table></div>
     <div class="addbar">
       <div class="f"><label>Novo aporte — descrição</label><input id="apObs" placeholder="Ex.: revisão de orçamento 2027/1"></div>
@@ -1635,6 +1652,46 @@ function renderAlert(){
   else el.innerHTML='<b>⚠ 1 parcela vencida</b> e não paga ('+venc[0].ref+', venc. '+venc[0].vencimento.split('-').reverse().join('/')+'). Atenção: com 2 em atraso, o contrato autoriza exclusão.';
 }
 
+// A conta de uma parcela, linha a linha, cada uma explicando a anterior:
+//   base do contrato -> INCC -> valor do boleto -> juros/multa -> valor pago
+// "Diferenca" e "INCC" eram colunas separadas e mostravam o MESMO numero sempre
+// que nao havia juros nem multa (todos os casos ate hoje). Aqui a diferenca e o
+// proprio INCC, e so se desdobra quando ha atraso.
+function decompoe(r){
+  if(r.tipo==='aporte')return null;
+  const base=num(r.valor_base);
+  if(!(base>0))return null;
+  const temBol=r.valor_boleto!=null&&num(r.valor_boleto)>0;
+  const pago=r.valor_pago!=null?num(r.valor_pago):null;
+  if(!temBol&&pago==null)return null;          // nada a decompor ainda
+  const jm=num(r.juros)+num(r.multa);
+  // o INCC mede-se contra o boleto quando ele existe; senao contra o que foi pago
+  const alvo=temBol?num(r.valor_boleto):(pago-jm);
+  const inccV=alvo-base;
+  const n=nOf(r.vencimento);
+  // a taxa so faz sentido com pelo menos 1 mes de correcao
+  const txM=(n>=1&&base>0)?Math.pow(1+inccV/base,1/n)-1:null;
+  return {base,temBol,boleto:temBol?num(r.valor_boleto):null,pago,jm,inccV,
+          pct:inccV/base, txAnual:(txM!=null&&isFinite(txM))?Math.pow(1+txM,12)-1:null,
+          emDia:boletoEmDia(r)};
+}
+// versao compacta para a celula da tabela / linha do cartao
+function contaHTML(d){
+  if(!d)return '—';
+  const lin=(rot,val,cls,extra)=>'<div class="cl'+(cls?' '+cls:'')+'"><span>'+rot+'</span>'+
+    '<b>'+val+'</b></div>'+(extra?'<div class="cx">'+extra+'</div>':'');
+  let h='<div class="conta">';
+  h+=lin('Base',BRL(d.base,2));
+  if(d.inccV!==0||d.temBol){
+    const tx=d.txAnual!=null?PCT(d.pct*100,2)+' · '+PCT(d.txAnual*100,2)+' a.a.':PCT(d.pct*100,2);
+    h+=lin('INCC',(d.inccV>=0?'+':'−')+BRL(Math.abs(d.inccV),2),d.inccV>=0?'up':'dn',tx);
+  }
+  if(d.temBol)h+=lin('Boleto',BRL(d.boleto,2),'tot');
+  if(d.jm>0)h+=lin('Juros + multa','+'+BRL(d.jm,2),'dn');
+  if(d.pago!=null)h+=lin('Pago',BRL(d.pago,2),'tot');
+  return h+'</div>';
+}
+
 function renderTable(c){
   const tb=$('tbody');tb.innerHTML='';
   const by=docsByParcela();
@@ -1645,6 +1702,7 @@ function renderTable(c){
     const vencida=!isAp&&r.valor_pago==null&&r.vencimento&&new Date(r.vencimento+'T00:00:00')<hoje;
     const incc=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa):null;
     const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
+    const conta=decompoe(r);
     // o Pix ao socio e metade do que SERA PAGO: o boleto ja vem com INCC.
     // Usar a base do contrato subestimava (R$ 1.727,31 contra R$ 1.766,29 reais).
     const temBol=r.valor_boleto!=null&&num(r.valor_boleto)>0;
@@ -1653,14 +1711,13 @@ function renderTable(c){
     const tr=document.createElement('tr');const _st=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));tr.className=(r.tipo==='semestral'?'semestral ':'')+_st;
     tr.innerHTML=`<td data-label="Parcela"><b>${esc(r.ref)}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+esc(r.obs)+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
       <td data-label="Vencimento">${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
-      <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}${!isAp&&temBol?'<br><span class="bolv">boleto '+BRL(efetivo,2)+'</span>':''}</td>
+      <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}</td>
       <td class="metade" data-label="50%">${isAp?'—':BRL(meio,2)}${!isAp&&temBol?'<br><span class="bolv">do boleto</span>':''}</td>
       <td data-label="Valor pago"><input type="text" inputmode="decimal" value="${moneyIn(r.valor_pago)}" data-raw="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
       <td data-label="Data pgto"><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
       <td data-label="Juros">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.juros)+'" data-raw="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
       <td data-label="Multa">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.multa)+'" data-raw="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
-      <td class="sec" data-label="Diferença">${dif!=null&&!isAp?'<span class="'+(dif>=0?'incc-ok':'incc-bad')+'">'+BRL(dif,2)+'</span>':'—'}</td>
-      <td class="sec" data-label="INCC embutido">${incc!=null&&!isAp?'<span class="'+(incc>=0?'incc-ok':'incc-bad')+'">'+BRL(incc,2)+'</span>':'—'}</td>
+      <td class="contac${conta?'':' vazia'}" data-label="Composição">${contaHTML(conta)}</td>
       <td data-label="Documentos">${canEdit?docChips(r.id,by):'<span class="proj">—</span>'}</td>`;
     tb.appendChild(tr);
   });
