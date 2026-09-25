@@ -510,7 +510,7 @@ footer b{color:var(--ink)}
     <h3>Parcelas <span class="badge" id="cntPagas">0 pagas</span></h3>
     <p class="desc"><b>Valor pago</b> e <b>data</b> de cada boleto. Se atrasou, preencha <b>juros</b> e <b>multa</b> — o resto vira INCC automaticamente.</p>
     <div class="tbl-wrap"><table class="pg"><thead><tr>
-      <th>Parcela</th><th>Venc.</th><th>Base</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>Composição</th><th>Docs</th>
+      <th>Parcela</th><th>Venc.</th><th>Base</th><th>Boleto</th><th>50%</th><th>Valor pago</th><th>Data pgto</th><th>Juros</th><th>Multa</th><th>Composição</th><th>Docs</th>
     </tr></thead><tbody id="tbody"></tbody></table></div>
     <div class="addbar">
       <div class="f"><label>Novo aporte — descrição</label><input id="apObs" placeholder="Ex.: revisão de orçamento 2027/1"></div>
@@ -1164,7 +1164,7 @@ async function uploadFiles(fileList,catId,statusId,inpId){
           // quando chega o comprovante. So grava valor lido de verdade, nunca projecao.
           if(vLido!=null&&m.valor_pago==null&&num(m.valor_boleto)!==vLido){
             m.valor_boleto=vLido;
-            m.boleto_data=new Date().toISOString().slice(0,10);
+            m.boleto_data=dataBoleto(lido,m.vencimento)||new Date().toISOString().slice(0,10);
             await saveRow(m);
           }
         }else{
@@ -1206,8 +1206,9 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     // boleto / Pix / pagamento so existiria no instante do upload
     const _pr=state.itens.find(x=>String(x.id)===String(parcela));
     // folga maior no pagamento: pode trazer juros e multa de atraso
-    const vDoc=(lido&&_pr)?valorProximo(lido.valores,refDoc(_pr,cat).alvo,
-                                        cat==='comprovante_pago'?0.6:0.15):null;
+    const vDoc=(lido&&_pr)?(cat==='comprovante_pago'
+                            ?valorPagoLido(lido.valores,refDoc(_pr,cat).alvo)
+                            :valorProximo(lido.valores,refDoc(_pr,cat).alvo,0.15)):null;
     const dDoc=(lido&&lido.datas&&lido.datas.length)?lido.datas.slice().sort().pop():null;
     const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail,valor_lido:vDoc,data_lida:dDoc}).select('id').single();
     if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg(st,'Erro ao indexar '+file.name);continue;}
@@ -1217,7 +1218,7 @@ async function uploadFiles(fileList,catId,statusId,inpId){
       const row=state.itens.find(x=>String(x.id)===String(parcela));
       if(row && row.valor_pago==null){
         // folga maior aqui: o comprovante pode incluir juros e multa de atraso
-        const vExtr=lido?melhorValor(lido.valores,row,1.6):null;
+        const vExtr=lido?valorPagoLido(lido.valores,refDoc(row,'comprovante_pago').alvo):null;
         const dts=(lido&&lido.datas)?lido.datas.slice().sort():[];
         let dt=dts.length?dts[dts.length-1]:null, v=null;
         if(vExtr!=null){
@@ -1238,9 +1239,14 @@ async function uploadFiles(fileList,catId,statusId,inpId){
             if(jaTinha){
               extra=' · ⚠️ juros/multa já preenchidos — mantive o que você lançou';
             }else if(cl.confere){
-              row.juros=cl.esperado.juros; row.multa=cl.esperado.multa;
-              extra=' · '+cl.dias+' dia'+(cl.dias>1?'s':'')+' de atraso: multa '+BRL(cl.esperado.multa,2)+
-                    ' + juros '+BRL(cl.esperado.juros,2)+' (confere com o contrato)';
+              // multa = 2% exatos do boleto (regra fechada); os juros absorvem o
+              // resto do que foi pago a mais. Assim a composicao FECHA no centavo:
+              // usar os dois valores da formula deixava ate R$ 1 de residuo, porque
+              // o banco arredonda o pro rata die de um jeito e o contrato de outro.
+              row.multa=cl.esperado.multa;
+              row.juros=Math.round((cl.delta-cl.esperado.multa)*100)/100;
+              extra=' · '+cl.dias+' dia'+(cl.dias>1?'s':'')+' de atraso: multa '+BRL(row.multa,2)+
+                    ' + juros '+BRL(row.juros,2)+' (confere com o contrato)';
             }else{
               // cobrou diferente do contrato: registra o total e avisa, sem fingir precisao
               row.juros=cl.delta; row.multa=0;
@@ -1345,10 +1351,21 @@ function normalizaTxt(t){
     .replace(/\s+/g,' ')
     .toLowerCase();
 }
+// Valor em real aparece em DOIS formatos nos comprovantes: com separador de
+// milhar (1.766,29) e sem ele (1766,29 — visto em Pix de alguns bancos e no OCR).
+// O padrao antigo exigia o ponto; sem ele casava so o final, e em silencio:
+// "1766,29" virava 766,29, "31200,00" virava 200,00 e "1000,00" virava 0,00.
+// As bordas impedem pegar trecho de CPF, codigo de barras, data ou valor em
+// formato americano (3,532.58). Construido com new RegExp porque lookbehind em
+// literal quebraria o script inteiro em motor antigo — ali cai no padrao velho.
+const RE_VALOR=(function(){
+  try{return new RegExp('(?<![\\d.,])(\\d{1,3}(?:\\.\\d{3})+,\\d{2}|\\d+,\\d{2})(?!\\d)','g');}
+  catch(e){return /(\d{1,3}(?:\.\d{3})*,\d{2})/g;}
+})();
 function extrairDados(txt){
   txt=txt||'';
   const datas=[...new Set([...txt.matchAll(/(\d{2})\/(\d{2})\/(20\d{2})/g)].map(m=>m[3]+'-'+m[2]+'-'+m[1]))];
-  const valores=[...txt.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
+  const valores=[...txt.matchAll(RE_VALOR)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
   const norm=normalizaTxt(txt);
   // "vazio" = leu o arquivo mas nao veio conteudo util (worker do pdf.js falhando
   // em silencio, PDF so com imagem, texto protegido)
@@ -1409,6 +1426,27 @@ function refDoc(r,cat){
   const alvo=cat==='pix_socios'?cheio/2:cheio;
   return {alvo,temBoleto:bol!=null,cheio};
 }
+// Num comprovante de PAGAMENTO o total pago e o MAIOR dos valores plausiveis: o
+// documento traz o valor do titulo e, quando houve atraso, o valor pago acima
+// dele (multa + juros). Escolher o mais PROXIMO do esperado pegava justamente o
+// valor do boleto, e os encargos desapareciam em silencio — a conferencia dizia
+// "Pagamento = boleto ✓" num pagamento R$ 82,43 maior, e juros/multa nunca eram
+// lancados. A faixa ancorada no boleto mantem fora codigo de barras e saldo.
+function valorPagoLido(valores,ancora){
+  if(!valores||!valores.length||!(ancora>0))return null;
+  const c=valores.filter(v=>isFinite(v)&&v>=ancora*0.97&&v<=ancora*1.6);
+  if(!c.length)return null;
+  return c.reduce((a,b)=>b>a?b:a);
+}
+// Data do PROPRIO boleto (emissao), nunca a data em que voce anexou: anexar um
+// boleto depois do vencimento nao o transforma em boleto com encargos, e usar a
+// data do upload excluia da medicao do INCC um boleto perfeitamente limpo.
+function dataBoleto(lido,venc){
+  const ds=((lido&&lido.datas)||[]).slice().sort();
+  if(!ds.length)return null;
+  const ate=venc?ds.filter(d=>d<=venc):ds;
+  return ate.length?ate[0]:ds[0];
+}
 // escolhe entre os numeros lidos o mais proximo do alvo, dentro de uma faixa
 function valorProximo(valores,alvo,folga){
   if(!valores||!valores.length||!(alvo>0))return null;
@@ -1418,27 +1456,46 @@ function valorProximo(valores,alvo,folga){
   return c.reduce((a,b)=>Math.abs(b-alvo)<Math.abs(a-alvo)?b:a);
 }
 function _temValor(valores,alvo,pct,abs){return (valores||[]).some(v=>Math.abs(v-alvo)<=Math.max(abs||0,alvo*(pct||0)));}
-function casarPagamento(lido){ // comprovante de pagamento traz os dados do boleto (valor c/ INCC + vencimento)
+// Parcela em ABERTO vem antes da quitada: um comprovante novo nao pertence a uma
+// parcela ja paga. Antes a busca varria state.itens na ordem do id e podia casar
+// com um Sinal ja liquidado.
+function _ordemCasamento(){
+  const p=state.itens.filter(it=>it.tipo!=='aporte');
+  return p.filter(it=>it.valor_pago==null).concat(p.filter(it=>it.valor_pago!=null));
+}
+function casarPagamento(lido){ // o comprovante traz o valor do boleto (+ encargos, se atrasou)
   if(!lido)return null;const {datas,valores}=lido;
-  for(const it of state.itens){if(it.tipo==='aporte')continue;if(datas.includes(it.vencimento)&&_temValor(valores,it.valor_base,0.2,5))return it;}
-  for(const it of state.itens){if(it.tipo==='aporte')continue;if(datas.includes(it.vencimento))return it;}
-  for(const it of state.itens){if(it.tipo==='aporte')continue;if(_temValor(valores,it.valor_base,0.2,5))return it;}
+  const ord=_ordemCasamento();
+  // faixa ancorada no BOLETO (ou no projetado pelo INCC), nao no valor de contrato:
+  // com base ±20% o comprovante correto deixava de casar por volta da Mensal 30
+  const naFaixa=it=>{const a=refDoc(it,'comprovante_pago').alvo;
+    return a>0&&(valores||[]).some(v=>v>=a*0.97&&v<=a*1.6);};
+  for(const it of ord){if(datas.includes(it.vencimento)&&naFaixa(it))return it;}
+  for(const it of ord){if(datas.includes(it.vencimento))return it;}
+  for(const it of ord){if(naFaixa(it))return it;}
   return null;
 }
-function casarPix(lido){ // o Pix p/ Dudu é a METADE do boleto
+function casarPix(lido){ // o Pix p/ Dudu é a METADE do que se paga
   if(!lido)return null;const {valores}=lido;
-  for(const it of state.itens){if(it.tipo==='aporte')continue;if(_temValor(valores,it.valor_base/2,0.05,5))return it;}
+  for(const it of _ordemCasamento()){
+    const {alvo,temBoleto}=refDoc(it,'pix_socios');
+    // com boleto registrado a metade e exata (so centavo); sem ele, folga do INCC
+    if(alvo>0&&_temValor(valores,alvo,temBoleto?0:0.03,temBoleto?0.02:5))return it;}
   return null;
 }
 function validarDoc(cat,lido,parcela){
   if(!lido||!parcela)return null;const {valores,texto}=lido;const notas=[];let alerta=false;
+  // mesma referencia da conferencia do trio: o boleto manda, nunca o valor de
+  // contrato — contra base/2 o Pix CORRETO acusava "valor ?" da Mensal 12 em diante
+  const {alvo,temBoleto}=refDoc(parcela,cat);
   if(cat==='pix_socios'){
     const benefOk=!!texto&&texto.includes('eduardo')&&BENEF_PIX.some(t=>t!=='eduardo'&&texto.includes(t));
-    const valOk=_temValor(valores,parcela.valor_base/2,0.08,10);
+    const valOk=alvo>0&&_temValor(valores,alvo,temBoleto?0:0.05,temBoleto?0.02:10);
     notas.push(benefOk?'beneficiário ✓':'beneficiário ?');if(!benefOk)alerta=true;
     notas.push(valOk?'valor ✓':'valor ?');if(!valOk)alerta=true;
   }else if(cat==='comprovante_pago'){
-    const valOk=_temValor(valores,parcela.valor_base,0.2,5);
+    // o pagamento pode vir acima do boleto por multa e juros de atraso
+    const valOk=alvo>0&&(valores||[]).some(v=>v>=alvo*0.98&&v<=alvo*1.6);
     notas.push(valOk?'valor ✓':'valor ?');if(!valOk)alerta=true;
   }
   return {alerta,nota:notas.join(' · ')};
@@ -1526,7 +1583,11 @@ function casarParcela(lido){const r=casarParcelaNivel(lido);return r?r.it:null;}
 // os 90% JA sao liquidos. Se um dia a regua virar CDB, volte a expor a escolha.
 function sv(){return{incc:+$('incc').value/100,cdi:+$('cdi').value/100,pctcdi:+$('pctcdi').value/100,trib:'isento'};}
 function getEntrega(){const sel=$('entrega').value;const d=sel==='custom'?($('entregaData').value||'2031-12-01'):sel;return new Date(d+'T00:00:00');}
-function aliqIR(anos){return anos>2?0.15:anos>1?0.175:anos>0.5?0.20:0.225;}
+// A tabela regressiva do IR conta DIAS, nao anos: 15% acima de 720 dias
+// (1,9726 ano), 17,5% de 361 a 720, 20% de 181 a 360, 22,5% ate 180.
+// Por anos, 721 dias ainda caia em 17,5%.
+function aliqIR(anos){const d=anos*365.25;
+  return d>720?0.15:d>360?0.175:d>180?0.20:0.225;}
 
 // Um boleto EM DIA ja mede o INCC real: e a base do contrato mais a correcao
 // acumulada, antes de qualquer pagamento. Antes so parcelas pagas alimentavam a
@@ -1559,14 +1620,27 @@ function inccObs(){
       if(isFinite(tx)&&tx>-0.02&&tx<0.05){taxas.push(tx);return true;}}
     return false;
   };
-  state.itens.filter(r=>r.tipo!=='aporte').forEach(r=>{
+  // Os 3 sinais sao a ENTRADA, paga pelo valor de contrato: nao levam INCC.
+  // Contados como observacao, cada um entrava como uma medida de 0% e arrastava a
+  // media a zero — o painel exibia "INCC observado: 0,00% a.a. — em uso na
+  // projecao" e projetava as 62 parcelas restantes sem correcao nenhuma,
+  // subestimando o custo total. Correcao mede-se onde ela existe: mensal/semestral.
+  state.itens.filter(r=>r.tipo!=='aporte'&&r.tipo!=='sinal').forEach(r=>{
     const base=num(r.valor_base), n=nOf(r.vencimento);
-    if(r.valor_pago!=null){
-      const incc=num(r.valor_pago)-base-num(r.juros)-num(r.multa);
-      somaIncc+=incc; push(incc,base,n);
-    }else if(boletoEmDia(r)){
-      if(push(num(r.valor_boleto)-base,base,n))nBoletos++;
-    }
+    const pago=r.valor_pago!=null?num(r.valor_pago):null;
+    const temBol=boletoEmDia(r);
+    // Mede contra o BOLETO sempre que ele existir — e o numero limpo da
+    // incorporadora, sem multa nem juros. Medir contra o PAGAMENTO fazia o
+    // encargo de atraso que voce esqueceu de lancar virar "inflacao": um atraso de
+    // 10 dias levava a projecao de 9,34% para 19,90% a.a. e o custo total de
+    // R$ 565 mil para R$ 687 mil, sem nada na tela apontando a causa.
+    const alvo=temBol?num(r.valor_boleto):(pago!=null?pago-num(r.juros)-num(r.multa):null);
+    if(alvo==null)return;
+    const incc=alvo-base;
+    // "INCC pago" e sobre o que JA saiu do bolso; lancamento absurdo poluia o KPI
+    // enquanto a projecao, corretamente, o descartava
+    if(pago!=null&&Math.abs(incc)<=base*0.6)somaIncc+=incc;
+    if(push(incc,base,n)&&pago==null)nBoletos++;
   });
   const tm=taxas.length?taxas.reduce((a,b)=>a+b,0)/taxas.length:null;
   return {mensal:tm,anual:tm!=null?Math.pow(1+tm,12)-1:null,nObs:taxas.length,somaIncc,nBoletos};
@@ -1575,11 +1649,18 @@ function taxaProjMensal(){const s=sv(),o=inccObs();
   if($('useObs').checked&&o.mensal!=null)return o.mensal;
   return Math.pow(1+s.incc,1/12)-1;}
 
+// Quanto esta parcela vai custar: se o boleto ja chegou, o valor e CONHECIDO —
+// projetar por cima dele troca um fato por uma estimativa. So projeta o que ainda
+// nao foi cobrado.
+function aPagar(r,imP){
+  if(r.valor_boleto!=null&&num(r.valor_boleto)>0)return num(r.valor_boleto);
+  return num(r.valor_base)*Math.pow(1+imP,nOf(r.vencimento));
+}
 function compute(){
   const s=sv(),imP=taxaProjMensal();
   let pagoReg=0,projRest=0,projPagas=0,aportes=0,baseTotal=0,baseRest=0,npagas=0;
   const parc=state.itens.filter(r=>r.tipo!=='aporte');
-  parc.forEach(r=>{const n=nOf(r.vencimento);const proj=r.valor_base*Math.pow(1+imP,n);
+  parc.forEach(r=>{const proj=aPagar(r,imP);
     baseTotal+=num(r.valor_base);
     if(r.valor_pago!=null){pagoReg+=num(r.valor_pago);projPagas+=proj;npagas++;}else{projRest+=proj;baseRest+=num(r.valor_base);}});
   state.itens.filter(r=>r.tipo==='aporte').forEach(r=>aportes+=num(r.valor_pago));
@@ -1819,8 +1900,11 @@ function auditaParcela(r,porParcela){
   const linhas=[]; let alerta=false;
   const add=(rot,st,txt)=>{linhas.push({rot,st,txt}); if(st==='bad')alerta=true;};
 
+  // a composicao logo acima ja mostra o VALOR do boleto; aqui o que interessa e o
+  // estado do DOCUMENTO. Repetir o valor punha "Boleto R$ 3.532,58" duas vezes
+  // seguidas no cartao, comendo espaco que no celular faz falta.
   add('Boleto', dBol?(bol!=null?'ok':'wait'):'none',
-      dBol?(bol!=null?BRL(bol,2):'anexado, valor não lido'):'não anexado');
+      dBol?(bol!=null?'anexado e lido':'anexado, valor não lido'):'não anexado');
 
   if(dPix){
     const v=dPix.valor_lido!=null?num(dPix.valor_lido):null;
@@ -1876,7 +1960,11 @@ function decompoe(r){
   const n=nOf(r.vencimento);
   // a taxa so faz sentido com pelo menos 1 mes de correcao
   const txM=(n>=1&&base>0)?Math.pow(1+inccV/base,1/n)-1:null;
-  return {base,temBol,boleto:temBol?num(r.valor_boleto):null,pago,jm,inccV,
+  // o que sobra depois de base + INCC + juros/multa. Deveria ser zero; quando nao
+  // e (juros lancados a mao que nao batem com o pagamento, por exemplo) a conta
+  // aparecia na tela sem somar, sem nada dizer.
+  const resid=(pago!=null&&temBol)?Math.round((pago-num(r.valor_boleto)-jm)*100)/100:0;
+  return {base,temBol,boleto:temBol?num(r.valor_boleto):null,pago,jm,inccV,resid,
           pct:inccV/base, txAnual:(txM!=null&&isFinite(txM))?Math.pow(1+txM,12)-1:null,
           emDia:boletoEmDia(r)};
 }
@@ -1894,6 +1982,9 @@ function contaHTML(d){
   if(d.temBol)h+=lin('Boleto',BRL(d.boleto,2),'tot');
   if(d.jm>0)h+=lin('Juros + multa','+'+BRL(d.jm,2),'dn');
   if(d.pago!=null)h+=lin('Pago',BRL(d.pago,2),'tot');
+  if(Math.abs(d.resid||0)>=0.5)
+    h+=lin('⚠ não fecha',(d.resid>0?'+':'−')+BRL(Math.abs(d.resid),2),'dn',
+           'base + INCC + juros/multa não somam o valor pago — confira juros e multa');
   return h+'</div>';
 }
 
@@ -1918,6 +2009,7 @@ function renderTable(c){
     tr.innerHTML=`<td data-label="Parcela"><b>${esc(r.ref)}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+esc(r.obs)+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
       <td data-label="Vencimento">${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}</td>
+      <td data-label="Boleto">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.valor_boleto)+'" data-raw="'+(r.valor_boleto!=null?r.valor_boleto:'')+'" data-id="'+r.id+'" data-f="valor_boleto" placeholder="—" title="valor cobrado no boleto (já com INCC)" '+(canEdit?'':'disabled')+'>'}</td>
       <td class="metade" data-label="50%">${isAp?'—':BRL(meio,2)}${!isAp&&temBol?'<br><span class="bolv">do boleto</span>':''}</td>
       <td data-label="Valor pago"><input type="text" inputmode="decimal" value="${moneyIn(r.valor_pago)}" data-raw="${r.valor_pago!=null?r.valor_pago:''}" data-id="${r.id}" data-f="valor_pago" placeholder="—" ${canEdit?'':'disabled'}></td>
       <td data-label="Data pgto"><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
@@ -1928,12 +2020,22 @@ function renderTable(c){
     tb.appendChild(tr);
   });
   tb.querySelectorAll('input').forEach(inp=>{
-    const f=inp.dataset.f, money=(f==='valor_pago'||f==='juros'||f==='multa');
+    const f=inp.dataset.f, money=(f==='valor_pago'||f==='juros'||f==='multa'||f==='valor_boleto');
     if(money)inp.addEventListener('focus',()=>{inp.value=inp.dataset.raw||'';inp.select&&inp.select();});
     inp.addEventListener('change',()=>{
       const id=+inp.dataset.id;let v=inp.value;
       v=(f==='data_pagamento')?(v||null):(money?(v.trim()===''?null:parseBRnum(v)):(v===''?null:parseFloat(v)));
-      const row=state.itens.find(x=>x.id===id);if(row){row[f]=v;saveRow(row);}render();
+      const row=state.itens.find(x=>x.id===id);
+      if(row){row[f]=v;
+        // boleto informado a mao: o valor de FACE do boleto nunca traz multa nem
+        // juros, entao ele vale como medida limpa do INCC. Sem data, boletoEmDia()
+        // o descartaria da medicao — assume o vencimento do mes.
+        if(f==='valor_boleto'){
+          if(v!=null&&v>0&&!row.boleto_data)row.boleto_data=row.vencimento||null;
+          if(v==null)row.boleto_data=null;
+        }
+        saveRow(row);}
+      render();
     });
   });
   tb.querySelectorAll('[data-docopen]').forEach(b=>b.onclick=()=>openDoc(decodeURIComponent(b.dataset.docopen)));
@@ -2003,7 +2105,7 @@ function analisar(c,vendaOverride,entregaOverride){
   };
   state.itens.forEach(r=>{
     if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});}return;}
-    const val=r.valor_pago!=null?num(r.valor_pago):r.valor_base*Math.pow(1+c.imP,nOf(r.vencimento));
+    const val=r.valor_pago!=null?num(r.valor_pago):aPagar(r,c.imP);
     const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
     nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });

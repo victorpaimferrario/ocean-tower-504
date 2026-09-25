@@ -15,9 +15,17 @@ name: Atualiza indices (IPCA/CDI)
 # sem correcao nenhuma — subestimando o desembolso corrigido e o piso de venda
 # IPCA. Dia 12 da ~2 dias de folga sobre a publicacao do IBGE.
 
+#
+# POR QUE TAMBEM DIA 1: a serie 4391 e "CDI acumulado NO MES", entao o mes
+# corrente vem PARCIAL (em 23/09 gravava 0,72% de um mes que fecharia ~1,05%).
+# Enquanto o mes nao virou isso e inofensivo — fatorReal() nao usa o mes corrente.
+# Virado o mes, o valor parcial passa a ser lido como mes FECHADO e subestimava o
+# CDI daquele mes ate a rodada do dia 12. A rodada do dia 1 fecha o mes anterior
+# logo; a do dia 12 continua sendo a que traz o IPCA (IBGE publica ~dia 10).
 on:
   schedule:
-    - cron: '30 9 12 * *'     # dia 12, ~09:30 UTC (~06:30 Brasilia)
+    - cron: '30 9 1 * *'      # dia 1, fecha o CDI do mes anterior
+    - cron: '30 9 12 * *'     # dia 12, ~09:30 UTC (~06:30 Brasilia) — traz o IPCA
   workflow_dispatch:
 
 permissions:
