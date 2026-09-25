@@ -1334,12 +1334,53 @@ async function deleteDoc(id,path){
 }
 
 let _pdfjs=null;
+const PDF_VER='3.11.174';
+// Dois CDNs: se o primeiro cair (ou estiver bloqueado na rede do celular), o
+// segundo assume. Antes havia um so, e sem ele nao havia leitura nenhuma.
+const PDF_CDNS=['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/'+PDF_VER+'/',
+                'https://cdn.jsdelivr.net/npm/pdfjs-dist@'+PDF_VER+'/build/'];
+function carregaScript(src){
+  return new Promise((res,rej)=>{const s=document.createElement('script');
+    s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error('script: '+src));
+    document.head.appendChild(s);});
+}
+// O pdf.js baixa DOIS arquivos: a biblioteca e o worker. O worker e um Worker
+// cross-origin, e quando ele nao sobe o pdf.js NAO cai sozinho para o modo sem
+// worker — a leitura falha inteira. Reproduzido em teste: com o worker bloqueado,
+// o boleto passava a ser identificado so pelo nome do arquivo e SEM valor algum,
+// que e exatamente a mensagem "e a unica parcela que vence no mes indicado no
+// nome do arquivo" que apareceu no celular.
+// Buscar o worker como TEXTO e servi-lo por blob: o torna mesma-origem — a
+// correcao conhecida para WebKit/iOS, onde Worker cross-origin e o caso que mais
+// falha — e de quebra permite tentar o segundo CDN.
+async function workerBlob(base){
+  const r=await fetch(base+'pdf.worker.min.js',{mode:'cors'});
+  if(!r.ok)throw new Error('worker HTTP '+r.status);
+  const txt=await r.text();
+  if(!txt||txt.length<10000)throw new Error('worker vazio');
+  return URL.createObjectURL(new Blob([txt],{type:'application/javascript'}));
+}
 async function ensurePdfjs(){
   if(_pdfjs)return _pdfjs;
-  await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
-  _pdfjs=window.pdfjsLib;
-  try{_pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
-  return _pdfjs;
+  let ultimo=null;
+  for(const base of PDF_CDNS){
+    try{
+      if(!window.pdfjsLib)await carregaScript(base+'pdf.min.js');
+      const lib=window.pdfjsLib;
+      if(!lib)throw new Error('pdfjsLib ausente');
+      // sem worker utilizavel nao adianta seguir: e o passo que falha no celular
+      lib.GlobalWorkerOptions.workerSrc=await workerBlob(base);
+      _pdfjs=lib; return _pdfjs;
+    }catch(e){ultimo=e; console.warn('pdf.js falhou em '+base,e&&e.message);}
+  }
+  // Ultimo recurso: worker direto do CDN, o comportamento antigo. O blob depende
+  // de o CDN mandar Access-Control-Allow-Origin; se algum dia nao mandar, o
+  // Worker cross-origin ainda pode subir — e melhor tentar do que desistir.
+  if(window.pdfjsLib){
+    try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_CDNS[0]+'pdf.worker.min.js';
+        _pdfjs=window.pdfjsLib; return _pdfjs;}catch(e){ultimo=e;}
+  }
+  throw ultimo||new Error('pdf.js indisponível');
 }
 // O pdf.js pode devolver o texto fatiado de formas diferentes conforme o motor
 // (Chromium x WebKit/iOS): espacos duplos, quebras no meio do rotulo, NBSP.
@@ -1382,7 +1423,10 @@ function lerBoleto(file){
     for(let p=1;p<=np;p++){const pg=await pdf.getPage(p);const c=await pg.getTextContent();txt+=' '+c.items.map(it=>it.str).join(' ');}
     return extrairDados(txt);
   })().catch(e=>{console.warn('leitura PDF falhou',e);return null;});
-  return Promise.race([work,new Promise(r=>setTimeout(()=>r(null),12000))]);
+  // 12s derrubava a leitura em rede de celular: a biblioteca e o worker somam
+  // ~1,4 MB, e em 4G fraco isso passa de 12s com folga. Medido em teste: com o
+  // download a 15s, a leitura caia no nome do arquivo mesmo estando tudo certo.
+  return Promise.race([work,new Promise(r=>setTimeout(()=>r(null),30000))]);
 }
 let _ocrWorker=null;
 async function ensureOcr(){
