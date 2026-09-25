@@ -56,7 +56,7 @@ header h1 .num{color:var(--gold)}
    se alinhem entre todos os cards, independentemente do tamanho do texto */
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 11px;
   display:grid;grid-template-rows:22px auto 1fr;align-content:start;
-  text-align:justify;text-justify:inter-word}
+  text-align:left}
 .kpi-hr{border:none;border-top:1px solid var(--line);width:100%;margin:7px 0 5px}
 .kpi .k-label{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
   font-weight:600;line-height:1.15;align-self:start}
@@ -323,6 +323,7 @@ footer b{color:var(--ink)}
 @media(max-width:760px){
   .wrap{padding:0 13px}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kpis .kpi:last-child:nth-child(odd){grid-column:1/-1}
   header{padding:16px 0 14px}
   .head-main h1{font-size:21px;margin:4px 0 3px}
   .head-main .sub{font-size:13px}
@@ -456,7 +457,8 @@ footer b{color:var(--ink)}
     <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><div class="k-sub">65 parcelas, sem INCC</div></div>
     <div class="kpi"><div class="k-label">Já pago</div><div class="k-val" id="kPago">—</div><div class="k-sub" id="kPagoSub">—</div></div>
     <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes</div></div>
-    <div class="kpi"><div class="k-label">INCC pago</div><div class="k-val" id="kIncc">—</div><div class="k-sub">já embutido no que pagou</div></div>
+    <div class="kpi"><div class="k-label">INCC pago</div><div class="k-val" id="kIncc">—</div><div class="k-sub" id="kInccSub">já embutido no que pagou</div></div>
+    <div class="kpi"><div class="k-label">Encargos pagos</div><div class="k-val" id="kEnc">—</div><div class="k-sub" id="kEncSub">juros e multa por atraso</div></div>
     <div class="kpi accent"><div class="k-label">Custo total projetado</div><div class="k-val" id="kAllin">—</div><div class="k-sub">parcelas + INCC + ITBI</div></div>
     <div class="kpi"><div class="k-label">Preço do m²</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
@@ -1201,7 +1203,35 @@ async function uploadFiles(fileList,catId,statusId,inpId){
           const resp=prompt('Comprovante de '+row.ref+' anexado, mas não consegui ler o valor (PDF sem texto ou imagem).\n\nDigite o valor pago em R$ (ex.: 24000 ou 24.000,00), ou cancele:','');
           if(resp!=null && resp.trim()!==''){const sx=resp.trim();v=sx.indexOf(',')>=0?parseFloat(sx.replace(/\./g,'').replace(',','.')):parseFloat(sx.replace(/[^0-9.]/g,''));}
         }
-        if(v!=null && !isNaN(v) && v>0){row.valor_pago=v; if(dt)row.data_pagamento=dt; await saveRow(row); upMsg(st,'✓ pagamento de '+row.ref+' preenchido: '+BRL(v,2));}
+        if(v!=null && !isNaN(v) && v>0){
+          row.valor_pago=v; if(dt)row.data_pagamento=dt;
+          // separa encargo de correcao ANTES de salvar: sem isso os juros entram
+          // como INCC no card e contaminam a projecao das parcelas restantes
+          let extra='';
+          const cl=classificaPagamento(row);
+          if(cl&&cl.tipo==='encargos'){
+            const jaTinha=num(row.juros)+num(row.multa)>0;
+            if(jaTinha){
+              extra=' · ⚠️ juros/multa já preenchidos — mantive o que você lançou';
+            }else if(cl.confere){
+              row.juros=cl.esperado.juros; row.multa=cl.esperado.multa;
+              extra=' · '+cl.dias+' dia'+(cl.dias>1?'s':'')+' de atraso: multa '+BRL(cl.esperado.multa,2)+
+                    ' + juros '+BRL(cl.esperado.juros,2)+' (confere com o contrato)';
+            }else{
+              // cobrou diferente do contrato: registra o total e avisa, sem fingir precisao
+              row.juros=cl.delta; row.multa=0;
+              extra=' · ⚠️ pagou '+BRL(cl.delta,2)+' a mais em '+cl.dias+' dia'+(cl.dias>1?'s':'')+
+                    ' de atraso, mas pela regra do contrato (2% + 1% a.m.) seriam '+
+                    BRL(cl.esperado?cl.esperado.total:0,2)+' — confira a cobrança';
+            }
+          }else if(cl&&cl.tipo==='a_maior_sem_atraso'){
+            extra=' · ⚠️ pagou '+BRL(cl.delta,2)+' a mais que o boleto sem atraso — não classifiquei como juros; confira';
+          }else if(cl&&cl.tipo==='a_menor'){
+            extra=' · ⚠️ pagou '+BRL(Math.abs(cl.delta),2)+' a menos que o boleto — confira';
+          }
+          await saveRow(row);
+          upMsg(st,'✓ pagamento de '+row.ref+' preenchido: '+BRL(v,2)+extra);
+        }
       }
     }
   }
@@ -1467,6 +1497,18 @@ function boletoEmDia(r){
   if(!r.boleto_data||!r.vencimento)return false;
   return String(r.boleto_data)<=String(r.vencimento);
 }
+// Encargos pagos = juros + multa lancados nas parcelas. Somados a parte do INCC
+// de proposito: correcao monetaria e penalidade por atraso sao naturezas
+// diferentes, e misturar as duas esconde o custo do atraso.
+function somaEncargos(){
+  let juros=0,multa=0,nParc=0;
+  state.itens.forEach(r=>{
+    if(r.tipo==='aporte')return;
+    const j=num(r.juros), m=num(r.multa);
+    if(j>0||m>0){juros+=j;multa+=m;nParc++;}
+  });
+  return {juros,multa,total:juros+multa,nParc};
+}
 function inccObs(){
   const taxas=[];let somaIncc=0,nBoletos=0;
   const push=(incc,base,n)=>{
@@ -1501,7 +1543,7 @@ function compute(){
   state.itens.filter(r=>r.tipo==='aporte').forEach(r=>aportes+=num(r.valor_pago));
   const allin=pagoReg+projRest+aportes+custoEscritAtual();const o=inccObs();
   return {s,imP,parc,pagoReg,projRest,aportes,allin,jaPago:pagoReg+aportes,
-    falta:allin-(pagoReg+aportes),custoM2:allin/AREA,inccPago:o.somaIncc,obs:o,
+    falta:allin-(pagoReg+aportes),custoM2:allin/AREA,inccPago:o.somaIncc,obs:o,enc:somaEncargos(),
     baseTotal,baseRest,npagas,nrest:parc.length-npagas};
 }
 
@@ -1635,6 +1677,16 @@ function render(){
   $('kFalta').textContent=BRL(c.baseRest);
   $('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s');
   $('kIncc').textContent=BRL(c.inccPago);
+  {// o % diz mais que o valor: e o que se compara com a projecao
+   const bp=c.pagoReg>0?c.inccPago/(c.pagoReg-c.inccPago-c.enc.total):0;
+   $('kInccSub').textContent=c.inccPago>0&&isFinite(bp)&&bp>0
+     ? PCT(bp*100,2)+' sobre o valor de contrato já pago'
+     : 'já embutido no que pagou';}
+  {const e=c.enc;
+   $('kEnc').textContent=BRL(e.total);
+   $('kEncSub').textContent=e.total>0
+     ? 'juros '+BRL(e.juros)+' + multa '+BRL(e.multa)+' · '+e.nParc+' parcela'+(e.nParc>1?'s':'')+' em atraso'
+     : 'nenhum atraso até aqui';}
   $('kAllin').textContent=BRL(c.allin);
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='com tudo: '+BRL(c.allin/AREA)+'/m²';
   {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
@@ -1657,6 +1709,43 @@ function renderAlert(){
 // "Diferenca" e "INCC" eram colunas separadas e mostravam o MESMO numero sempre
 // que nao havia juros nem multa (todos os casos ate hoje). Aqui a diferenca e o
 // proprio INCC, e so se desdobra quando ha atraso.
+// O boleto imprime a regra: "Multa de 2,00% apos o vencimento | Juros de 1% ao mes".
+// Com ela da para separar encargo de correcao e, de quebra, CONFERIR a cobranca:
+// se a soma nao bate com o que foi pago a mais, veio algo alem do contrato.
+const MULTA_PCT=0.02, JUROS_MES=0.01;
+function diasAtraso(venc,pgto){
+  if(!venc||!pgto)return 0;
+  const a=new Date(venc+'T00:00:00'), b=new Date(pgto+'T00:00:00');
+  if(!isFinite(a)||!isFinite(b))return 0;
+  return Math.round((b-a)/86400000);
+}
+function encargosEsperados(boleto,venc,pgto){
+  const dias=diasAtraso(venc,pgto);
+  if(!(dias>0)||!(boleto>0))return null;
+  const multa=boleto*MULTA_PCT;
+  const juros=boleto*JUROS_MES*(dias/30);   // pro rata die
+  return {dias,multa:Math.round(multa*100)/100,juros:Math.round(juros*100)/100,
+          total:Math.round((multa+juros)*100)/100};
+}
+// Classifica o que foi pago a mais (ou a menos) que o boleto.
+// So chama de juros/multa quando houve atraso DE FATO — pagar a maior sem atraso
+// nao e encargo nem correcao, e vira aviso em vez de palpite.
+function classificaPagamento(r){
+  const base=num(r.valor_base), pago=r.valor_pago!=null?num(r.valor_pago):null;
+  const bol=r.valor_boleto!=null&&num(r.valor_boleto)>0?num(r.valor_boleto):null;
+  if(pago==null)return null;
+  if(bol==null)return {tipo:'sem_boleto',delta:pago-base};
+  const delta=Math.round((pago-bol)*100)/100;
+  const dias=diasAtraso(r.vencimento,r.data_pagamento);
+  if(Math.abs(delta)<0.02)return {tipo:'exato',delta:0,dias};
+  if(delta<0)return {tipo:'a_menor',delta,dias};
+  if(dias<=0)return {tipo:'a_maior_sem_atraso',delta,dias};
+  const esp=encargosEsperados(bol,r.vencimento,r.data_pagamento);
+  const bate=esp&&Math.abs(esp.total-delta)<=Math.max(1,delta*0.05);
+  return {tipo:'encargos',delta,dias,esperado:esp,confere:!!bate,
+          multa:bate?esp.multa:Math.round(delta*MULTA_PCT/(MULTA_PCT+JUROS_MES*(dias/30))*100)/100,
+          juros:bate?esp.juros:null};
+}
 function decompoe(r){
   if(r.tipo==='aporte')return null;
   const base=num(r.valor_base);
