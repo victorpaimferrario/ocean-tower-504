@@ -1897,43 +1897,57 @@ function auditaParcela(r,porParcela){
   const dBol=acha('boleto'), dPix=acha('pix_socios'), dPag=acha('comprovante_pago');
   if(!dBol&&!dPix&&!dPag)return null;                    // nada a conferir ainda
   const bol=(r.valor_boleto!=null&&num(r.valor_boleto)>0)?num(r.valor_boleto):null;
+  // Parcela QUITADA sem boleto registrado — os 3 sinais, pagos por transferencia
+  // pelo valor de contrato — nao tem boleto para esperar. A referencia passa a ser
+  // o que efetivamente saiu da conta. Sem isso as tres linhas ficavam em
+  // "⏳ aguardando o boleto" para sempre numa parcela encerrada, e um aviso que
+  // nunca se resolve treina a pessoa a ignorar todos os avisos.
+  const pagoLiq=r.valor_pago!=null?num(r.valor_pago)-num(r.juros)-num(r.multa):null;
+  const ref=bol!=null?bol:pagoLiq;
+  const viaBoleto=bol!=null;
   const linhas=[]; let alerta=false;
   const add=(rot,st,txt)=>{linhas.push({rot,st,txt}); if(st==='bad')alerta=true;};
 
   // a composicao logo acima ja mostra o VALOR do boleto; aqui o que interessa e o
   // estado do DOCUMENTO. Repetir o valor punha "Boleto R$ 3.532,58" duas vezes
   // seguidas no cartao, comendo espaco que no celular faz falta.
-  add('Boleto', dBol?(bol!=null?'ok':'wait'):'none',
-      dBol?(bol!=null?'anexado e lido':'anexado, valor não lido'):'não anexado');
+  add('Boleto', dBol?(bol!=null?'ok':(pagoLiq!=null?'none':'wait')):'none',
+      dBol?(bol!=null?'anexado e lido'
+            :(pagoLiq!=null?'anexado, sem valor de boleto registrado'
+                           :'anexado, valor não lido')):'não anexado');
 
   if(dPix){
     const v=dPix.valor_lido!=null?num(dPix.valor_lido):null;
-    if(bol==null)      add('Pix p/ Dudu','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
+    if(ref==null)      add('Pix p/ Dudu','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
     else if(v==null)   add('Pix p/ Dudu','wait','anexado, valor não lido');
     else{
-      const esp=Math.round(bol*50)/100, d=Math.round((v-esp)*100)/100;
+      const esp=Math.round(ref*50)/100, d=Math.round((v-esp)*100)/100;
       add('Pix p/ Dudu',Math.abs(d)<=TOL_PIX?'ok':'bad',
-          BRL(v,2)+(Math.abs(d)<=TOL_PIX?' = metade do boleto ✓'
+          BRL(v,2)+(Math.abs(d)<=TOL_PIX?' = metade do '+(viaBoleto?'boleto':'valor pago')+' ✓'
             :' · esperado '+BRL(esp,2)+' ('+(d>0?'+':'−')+BRL(Math.abs(d),2)+')'));
     }
   }else add('Pix p/ Dudu','none','não anexado');
 
   if(dPag){
     const v=dPag.valor_lido!=null?num(dPag.valor_lido):null;
-    if(bol==null)      add('Pagamento','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
+    if(ref==null)      add('Pagamento','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
     else if(v==null)   add('Pagamento','wait','anexado, valor não lido');
     else{
-      const d=Math.round((v-bol)*100)/100;
+      const d=Math.round((v-ref)*100)/100;
       const dias=diasAtraso(r.vencimento,dPag.data_lida||r.data_pagamento);
-      if(Math.abs(d)<=0.02)                add('Pagamento','ok',BRL(v,2)+' = boleto ✓');
-      else if(d>0&&dias>0){
-        const esp=encargosEsperados(bol,r.vencimento,dPag.data_lida||r.data_pagamento);
+      const alvoTxt=viaBoleto?'boleto':'valor lançado';
+      if(Math.abs(d)<=0.02)                add('Pagamento','ok',BRL(v,2)+' = '+alvoTxt+' ✓');
+      // encargo de atraso so se compara quando ha boleto: sem ele nao existe o
+      // valor de face contra o qual medir o que foi pago a mais
+      else if(d>0&&dias>0&&viaBoleto){
+        const esp=encargosEsperados(ref,r.vencimento,dPag.data_lida||r.data_pagamento);
         const bate=esp&&Math.abs(esp.total-d)<=Math.max(1,d*0.05);
         add('Pagamento',bate?'ok':'bad',BRL(v,2)+' · '+dias+' dia'+(dias>1?'s':'')+' de atraso, '+
             (bate?'encargos conferem com o contrato ✓':'pago a mais '+BRL(d,2)+' mas pela regra seriam '+BRL(esp?esp.total:0,2)));
       }
-      else if(d>0) add('Pagamento','bad',BRL(v,2)+' · '+BRL(d,2)+' acima do boleto sem atraso');
-      else         add('Pagamento','bad',BRL(v,2)+' · '+BRL(Math.abs(d),2)+' abaixo do boleto');
+      else if(d>0) add('Pagamento','bad',BRL(v,2)+' · '+BRL(d,2)+' acima do '+alvoTxt+
+                       (dias>0?'':' sem atraso'));
+      else         add('Pagamento','bad',BRL(v,2)+' · '+BRL(Math.abs(d),2)+' abaixo do '+alvoTxt);
     }
   }else add('Pagamento','none','não anexado');
 
@@ -1964,7 +1978,7 @@ function decompoe(r){
   // e (juros lancados a mao que nao batem com o pagamento, por exemplo) a conta
   // aparecia na tela sem somar, sem nada dizer.
   const resid=(pago!=null&&temBol)?Math.round((pago-num(r.valor_boleto)-jm)*100)/100:0;
-  return {base,temBol,boleto:temBol?num(r.valor_boleto):null,pago,jm,inccV,resid,
+  return {base,temBol,boleto:temBol?num(r.valor_boleto):null,pago,jm,inccV,resid,n,
           pct:inccV/base, txAnual:(txM!=null&&isFinite(txM))?Math.pow(1+txM,12)-1:null,
           emDia:boletoEmDia(r)};
 }
@@ -1976,7 +1990,14 @@ function contaHTML(d){
   let h='<div class="conta">';
   h+=lin('Base',BRL(d.base,2));
   if(d.inccV!==0||d.temBol){
-    const tx=d.txAnual!=null?PCT(d.pct*100,2)+' · '+PCT(d.txAnual*100,2)+' a.a.':PCT(d.pct*100,2);
+    // O % acumulado e FATO (boleto ÷ base). A taxa a.a. e INFERENCIA: depende de
+    // quantos meses de correcao o contrato ja aplicou — o painel conta de jun/2026.
+    // Se o contrato corrigir a partir de outro mes, a taxa muda muito (2,26% em 3
+    // meses = 9,34% a.a.; nos mesmos 2,26% em 6 meses = 4,57% a.a.). Por isso o
+    // numero de meses aparece: e a premissa que sustenta a projecao inteira.
+    const tx=d.txAnual!=null
+      ?PCT(d.pct*100,2)+' em '+d.n+' '+(d.n===1?'mês':'meses')+' · '+PCT(d.txAnual*100,2)+' a.a.'
+      :PCT(d.pct*100,2);
     h+=lin('INCC',(d.inccV>=0?'+':'−')+BRL(Math.abs(d.inccV),2),d.inccV>=0?'up':'dn',tx);
   }
   if(d.temBol)h+=lin('Boleto',BRL(d.boleto,2),'tot');
