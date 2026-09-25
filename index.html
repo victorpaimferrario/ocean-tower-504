@@ -395,6 +395,7 @@ footer b{color:var(--ink)}
 .sens-col{overflow-x:auto}
 .modal h3{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-bottom:4px}
 .modal .modal-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.pixwarn{margin-top:8px;font-size:12.5px;color:var(--coral);background:rgba(224,122,95,.10);padding:8px 10px;border-radius:8px;line-height:1.5}
 .modal-sub.ok{color:var(--ocean2);background:rgba(28,124,140,.08);padding:8px 10px;border-radius:8px;line-height:1.5}
 .modal-sub.warn{color:var(--coral);background:rgba(224,122,95,.08);padding:8px 10px;border-radius:8px;line-height:1.5}
 .modal .modal-l{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
@@ -1118,8 +1119,9 @@ async function uploadFiles(fileList,catId,statusId,inpId){
           if(esc2==='__skip__'){upMsg(st,'↪️ '+file.name+' pulado');continue;}
           const m=state.itens.find(x=>String(x.id)===String(esc2))||r.it;
           parcela=String(m.id);vinc=m.ref;
-          const vb=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):m.valor_base;
-          pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100};
+          const vLido=lido?melhorValor(lido.valores,m,1.15):null;
+          const vb=vLido!=null?vLido:valorEsperado(m);   // sem leitura confiavel: projeta pelo INCC
+          pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100,estimado:vLido==null};
         }else{
           // nao identificou: diz POR QUE antes de mostrar a lista
           if(!lido){
@@ -1162,7 +1164,8 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     if(cat==='comprovante_pago' && parcela){
       const row=state.itens.find(x=>String(x.id)===String(parcela));
       if(row && row.valor_pago==null){
-        const vExtr=(lido&&lido.valores&&lido.valores.length)?Math.max(...lido.valores):null;
+        // folga maior aqui: o comprovante pode incluir juros e multa de atraso
+        const vExtr=lido?melhorValor(lido.valores,row,1.6):null;
         const dts=(lido&&lido.datas)?lido.datas.slice().sort():[];
         let dt=dts.length?dts[dts.length-1]:null, v=null;
         if(vExtr!=null){
@@ -1205,7 +1208,10 @@ function upMsgVinc(st,info){
 function upMsgPix(e,p){
   e.style.display='';e.classList.add('pix');
   const f=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  e.innerHTML=`✓ Boleto de <b>${esc(p.ref)}</b> anexado (total R$ ${f(p.total)}).`
+  // quando o valor nao pôde ser lido do PDF, o numero e projecao — e precisa dizer isso,
+  // porque e a partir dele que sai o Pix ao socio
+  e.innerHTML=`✓ Boleto de <b>${esc(p.ref)}</b> anexado (total R$ ${f(p.total)}${p.estimado?' <i>estimado</i>':''}).`
+    +(p.estimado?`<div class="pixwarn">⚠️ Não consegui ler o valor no PDF — este é o <b>projetado pelo INCC</b>. Confira no boleto antes de enviar o Pix.</div>`:'')
     +`<div class="pixrow">💸 Seu Pix p/ Dudu: <b>R$ ${f(p.metade)}</b>`
     +`<button class="docbtn" id="cpPix">copiar valor</button>`
     +`<button class="docbtn" id="okPix">ok</button></div>`;
@@ -1296,6 +1302,23 @@ function lerImagem(file){
 function ehImagem(file){return /^image\//i.test(file.type||'')||/\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(file.name||'');}
 function lerDoc(file){return ehImagem(file)?lerImagem(file):lerBoleto(file);}
 const BENEF_PIX=['eduardo','abreu','lima','sobrinho'];
+// Um boleto e cheio de numeros com cara de dinheiro: codigo de barras, linha
+// digitavel, nosso numero, agencia. Math.max(...valores) pegava o MAIOR deles.
+// No Safari do iPhone, onde o pdf.js extrai o texto de outro jeito, isso escolheu
+// R$ 9.579,38 num boleto de R$ 3.532,58 — e o Pix sugerido ao socio saiu
+// R$ 3.023 acima do devido. Aqui a escolha passa a ser o candidato plausivel
+// para ESTA parcela (faixa do contrato ate o projetado pelo INCC), o mais
+// proximo do esperado. Sem candidato plausivel devolve null — quem chama decide,
+// em vez de propagar um numero inventado.
+function melhorValor(valores,it,folgaMax){
+  if(!valores||!valores.length||!it)return null;
+  const base=+it.valor_base||0; if(!(base>0))return null;
+  const proj=valorEsperado(it);
+  const min=Math.min(base,proj)*0.97, max=Math.max(base,proj)*(folgaMax||1.15);
+  const cand=valores.filter(v=>isFinite(v)&&v>=min&&v<=max);
+  if(!cand.length)return null;
+  return cand.reduce((a,b)=>Math.abs(b-proj)<Math.abs(a-proj)?b:a);
+}
 function _temValor(valores,alvo,pct,abs){return (valores||[]).some(v=>Math.abs(v-alvo)<=Math.max(abs||0,alvo*(pct||0)));}
 function casarPagamento(lido){ // comprovante de pagamento traz os dados do boleto (valor c/ INCC + vencimento)
   if(!lido)return null;const {datas,valores}=lido;
