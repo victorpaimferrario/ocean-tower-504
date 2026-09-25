@@ -1106,12 +1106,14 @@ async function uploadFiles(fileList,catId,statusId,inpId){
         naoLeu=!lido;   // leitor nao carregou, estourou o timeout ou o PDF nao tem texto
       }
       if(cat==='boleto'){
-        const r=lido?casarParcelaNivel(lido):null;
+        const r=casarParcelaNivel(lido,file.name);
         if(r){
           // identificou: pede um OK rapido em vez de vincular calado, com o motivo
           const motivo=r.nivel===0?'o boleto informa o número da parcela'
                       :(r.nivel===1?'vencimento e valor conferem'
-                      :(r.nivel===2?'o vencimento confere':'o valor confere'));
+                      :(r.nivel===2?'o vencimento confere'
+                      :(r.nivel===3?'o valor confere'
+                      :'é a única parcela que vence no mês indicado no nome do arquivo')));
           const esc2=await askParcela(file.name,{it:r.it,motivo});
           if(esc2==='__skip__'){upMsg(st,'↪️ '+file.name+' pulado');continue;}
           const m=state.itens.find(x=>String(x.id)===String(esc2))||r.it;
@@ -1120,10 +1122,17 @@ async function uploadFiles(fileList,catId,statusId,inpId){
           pixInfo={ref:m.ref,total:vb,metade:Math.round(vb*50)/100};
         }else{
           // nao identificou: diz POR QUE antes de mostrar a lista
-          motivoFalha=!lido
-            ? (naoLeu?'⚠️ Não consegui ler o arquivo (o leitor de PDF não carregou) — escolha a parcela.'
-                     :'Não consegui ler o conteúdo do arquivo — escolha a parcela.')
-            : 'Li o arquivo, mas o vencimento e o valor não bateram com nenhuma parcela — escolha abaixo.';
+          if(!lido){
+            motivoFalha='⚠️ Não consegui ler o arquivo (o leitor de PDF não carregou) — escolha a parcela.';
+          }else if(lido.vazio){
+            motivoFalha='⚠️ Abri o PDF mas não veio texto (pode ser um PDF de imagem, ou o leitor falhou neste navegador) — escolha a parcela.';
+          }else{
+            // mostra a evidencia: sem isso e impossivel saber por que nao casou
+            const ds=(lido.datas||[]).slice(0,4).map(d=>d.split('-').reverse().join('/')).join(', ')||'nenhuma';
+            const vs=(lido.valores||[]).filter(v=>v>100).slice(0,3).map(v=>'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2})).join(', ')||'nenhum';
+            motivoFalha='Li o arquivo, mas nada bateu com as parcelas. Encontrei — datas: <b>'+ds+
+              '</b>; valores: <b>'+vs+'</b>. Escolha a parcela abaixo.';
+          }
         }
       } else {
         // Pix/Pagamento: o foco (boleto, com vencimento único) manda; a leitura VALIDA.
@@ -1240,11 +1249,24 @@ async function ensurePdfjs(){
   try{_pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
   return _pdfjs;
 }
+// O pdf.js pode devolver o texto fatiado de formas diferentes conforme o motor
+// (Chromium x WebKit/iOS): espacos duplos, quebras no meio do rotulo, NBSP.
+// Normalizar antes de procurar os padroes evita que a extracao dependa do browser.
+function normalizaTxt(t){
+  return (t||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')   // tira acentos
+    .replace(/[\u00a0\u2007\u202f]/g,' ')              // espacos nao-quebraveis
+    .replace(/\s+/g,' ')
+    .toLowerCase();
+}
 function extrairDados(txt){
   txt=txt||'';
   const datas=[...new Set([...txt.matchAll(/(\d{2})\/(\d{2})\/(20\d{2})/g)].map(m=>m[3]+'-'+m[2]+'-'+m[1]))];
   const valores=[...txt.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
-  return {datas,valores,texto:txt.toLowerCase()};
+  const norm=normalizaTxt(txt);
+  // "vazio" = leu o arquivo mas nao veio conteudo util (worker do pdf.js falhando
+  // em silencio, PDF so com imagem, texto protegido)
+  return {datas,valores,texto:norm,bruto:txt,vazio:!datas.length&&!valores.length&&norm.length<40};
 }
 function lerBoleto(file){
   // lê o PDF; com timeout p/ nunca travar o upload se o pdf.js demorar/falhar
@@ -1321,9 +1343,31 @@ function _casaValor(valores,it){
 // testar com um boleto real: o layout separa o rotulo "Vencimento" da data, entao
 // a extracao linear nao associa os dois e o casamento caia no nivel fraco (valor).
 // O total informado (55) diz o tipo: e a serie que tem 55 parcelas.
+// Ultimo recurso: o nome do arquivo costuma dizer o mes ("Boleto setembro 2026").
+// Se so uma parcela vence naquele mes, e ela. Nao chuta quando ha ambiguidade.
+const MESES={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,
+             agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+function casarPorNomeArquivo(nome){
+  const t=normalizaTxt(nome);
+  let mes=null,ano=null;
+  for(const k in MESES)if(t.includes(k)){mes=MESES[k];break;}
+  if(!mes){const mm=/\b(0[1-9]|1[0-2])[-_.\/](20\d{2})\b/.exec(t);
+    if(mm){mes=+mm[1];ano=+mm[2];}}
+  if(!ano){const ay=/\b(20\d{2})\b/.exec(t); if(ay)ano=+ay[1];
+    else{const a2=/\b(\d{2})\b(?!.*\b\d{2}\b)/.exec(t); if(a2)ano=2000+ +a2[1];}}
+  if(!mes||!ano)return null;
+  const alvo=String(ano)+'-'+String(mes).padStart(2,'0');
+  const cand=state.itens.filter(i=>i.tipo!=='aporte'&&String(i.vencimento).startsWith(alvo));
+  return cand.length===1?cand[0]:null;   // so quando nao ha duvida
+}
 function casarPorNumero(texto){
   if(!texto)return null;
-  const m=/total\s+de\s+parcelas\s*(\d{1,3})\s*\/\s*(\d{1,3})/i.exec(texto);
+  const t=normalizaTxt(texto);
+  // variacoes vistas em boletos: "Total de Parcelas 1/55", "parcelas: 1 / 55",
+  // "parcela 1 de 55". Todas ancoradas na palavra parcela(s) para nao pegar
+  // agencia/conta nem nosso numero.
+  const m=/parcelas?\s*[:\-]?\s*(\d{1,3})\s*(?:\/|de)\s*(\d{1,3})\b/i.exec(t)
+        ||/total\s+de\s+parcelas\D{0,12}(\d{1,3})\D{1,3}(\d{1,3})\b/i.exec(t);
   if(!m)return null;
   const n=+m[1], total=+m[2];
   if(!(n>0&&total>0&&n<=total))return null;
@@ -1337,8 +1381,9 @@ function casarPorNumero(texto){
 }
 
 // devolve {it, nivel} — nivel 0 e o boleto dizendo qual parcela e; 1 confere data E valor
-function casarParcelaNivel(lido){
-  if(!lido)return null;
+function casarParcelaNivel(lido,nomeArquivo){
+  if(!lido)return nomeArquivo?(()=>{const it=casarPorNomeArquivo(nomeArquivo);
+    return it?{it,nivel:4}:null;})():null;
   const {datas,valores}=lido;
   const parc=state.itens.filter(it=>it.tipo!=='aporte');
   const porNum=casarPorNumero(lido.texto);
@@ -1348,6 +1393,8 @@ function casarParcelaNivel(lido){
   for(const it of parc){ if(datas.includes(it.vencimento))return {it,nivel:2}; }
   for(const it of parc){ if(valores.some(v=>Math.abs(v-it.valor_base)<0.01||Math.abs(v-valorEsperado(it))<0.01))return {it,nivel:2}; }
   for(const it of parc){ if(_casaValor(valores,it)===true)return {it,nivel:3}; }
+  // nada no conteudo bateu: tenta o mes no nome do arquivo
+  if(nomeArquivo){const it=casarPorNomeArquivo(nomeArquivo); if(it)return {it,nivel:4};}
   return null;
 }
 function casarParcela(lido){const r=casarParcelaNivel(lido);return r?r.it:null;}
