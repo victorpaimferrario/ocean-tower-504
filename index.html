@@ -367,6 +367,9 @@ footer b{color:var(--ink)}
   table.pg td.contac .conta{min-width:0}
   table.pg td.contac .conta .cl{font-size:13px}
   table.pg td.contac .conta .cx{font-size:11px}
+  table.pg td.contac .aud .al{grid-template-columns:16px 1fr;font-size:12.5px}
+  table.pg td.contac .aud .al .ar{grid-column:2;font-weight:700}
+  table.pg td.contac .aud .al .at{grid-column:2}
   table.pg td:first-child{display:block;text-align:left;border-bottom:2px solid var(--line);padding:6px 4px 8px;font-size:16px}
   table.pg td:first-child::before{display:none}
   table.pg input{width:auto;max-width:62%}
@@ -404,6 +407,19 @@ footer b{color:var(--ink)}
 .modal h3{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-bottom:4px}
 .modal .modal-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
 /* a conta da parcela: cada linha explica a anterior e o total fecha embaixo */
+/* conferencia do trio: boleto / Pix / pagamento */
+.aud{display:flex;flex-direction:column;gap:3px;margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)}
+.aud .al{display:grid;grid-template-columns:14px 78px 1fr;gap:5px;align-items:baseline;font-size:11px;line-height:1.35}
+.aud .al .ai{font-weight:700;text-align:center}
+.aud .al .ar{color:var(--muted);font-weight:600}
+.aud .al .at{color:var(--ink)}
+.aud .al.ok .ai{color:var(--green,#2f855a)}
+.aud .al.bad .ai,.aud .al.bad .at{color:var(--coral)}
+.aud .al.bad .at{font-weight:600}
+.aud .al.wait .ai,.aud .al.wait .at{color:var(--gold,#b7791f)}
+.aud .al.none .ai,.aud .al.none .at{color:var(--muted)}
+.alert.aud-alert{display:none}
+.alert.aud-alert.show{display:block}
 .conta{display:flex;flex-direction:column;gap:2px;min-width:170px;font-variant-numeric:tabular-nums}
 .conta .cl{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:11.5px;line-height:1.35}
 .conta .cl span{color:var(--muted)}
@@ -452,6 +468,7 @@ footer b{color:var(--ink)}
 
   <div class="tabpane active" id="tabAcomp">
   <div class="alert" id="alert"></div>
+  <div class="alert aud-alert" id="alertAud"></div>
 
   <div class="kpis">
     <div class="kpi"><div class="k-label">Valor no contrato</div><div class="k-val" id="kContrato">—</div><div class="k-sub">65 parcelas, sem INCC</div></div>
@@ -1185,7 +1202,14 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     const path=(parcela?parcela:'negocio')+'/'+Date.now()+'_'+i+'_'+safe;
     const up=await sb.storage.from(BUCKET).upload(path,file,{upsert:false,contentType:file.type||undefined});
     if(up.error){fail++;upMsg(st,'Erro em '+file.name+': '+up.error.message);continue;}
-    const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail}).select('id').single();
+    // guarda o valor/data extraidos: sem isso a conferencia do trio
+    // boleto / Pix / pagamento so existiria no instante do upload
+    const _pr=state.itens.find(x=>String(x.id)===String(parcela));
+    // folga maior no pagamento: pode trazer juros e multa de atraso
+    const vDoc=(lido&&_pr)?valorProximo(lido.valores,refDoc(_pr,cat).alvo,
+                                        cat==='comprovante_pago'?0.6:0.15):null;
+    const dDoc=(lido&&lido.datas&&lido.datas.length)?lido.datas.slice().sort().pop():null;
+    const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail,valor_lido:vDoc,data_lida:dDoc}).select('id').single();
     if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg(st,'Erro ao indexar '+file.name);continue;}
     ok++; if(vinc){ultimoVinc=vinc;lastVinc={cat,ref:vinc,id:ins.data&&ins.data.id,auto:autoFoco,nota:validacao?validacao.nota:'',alerta:validacao?validacao.alerta:false};}
     // comprovante de pagamento: preenche valor pago + data na parcela (lê do PDF; se não der, pergunta)
@@ -1374,6 +1398,24 @@ function melhorValor(valores,it,folgaMax){
   const cand=valores.filter(v=>isFinite(v)&&v>=min&&v<=max);
   if(!cand.length)return null;
   return cand.reduce((a,b)=>Math.abs(b-proj)<Math.abs(a-proj)?b:a);
+}
+// Qual valor esperar de cada documento, e a referencia certa para compara-lo.
+// A referencia e o BOLETO quando ele existe — nunca o valor de contrato, que nao
+// acompanha o INCC. Validar Pix contra base/2 dava falso alarme crescente: na
+// Mensal 12 o Pix correto ja estava 11% acima do esperado, e na Mensal 55, 53%.
+function refDoc(r,cat){
+  const bol=(r&&r.valor_boleto!=null&&num(r.valor_boleto)>0)?num(r.valor_boleto):null;
+  const cheio=bol!=null?bol:(r?valorEsperado(r):0);
+  const alvo=cat==='pix_socios'?cheio/2:cheio;
+  return {alvo,temBoleto:bol!=null,cheio};
+}
+// escolhe entre os numeros lidos o mais proximo do alvo, dentro de uma faixa
+function valorProximo(valores,alvo,folga){
+  if(!valores||!valores.length||!(alvo>0))return null;
+  const min=alvo*(1-(folga||0.15)), max=alvo*(1+(folga||0.15));
+  const c=valores.filter(v=>isFinite(v)&&v>=min&&v<=max);
+  if(!c.length)return null;
+  return c.reduce((a,b)=>Math.abs(b-alvo)<Math.abs(a-alvo)?b:a);
 }
 function _temValor(valores,alvo,pct,abs){return (valores||[]).some(v=>Math.abs(v-alvo)<=Math.max(abs||0,alvo*(pct||0)));}
 function casarPagamento(lido){ // comprovante de pagamento traz os dados do boleto (valor c/ INCC + vencimento)
@@ -1698,6 +1740,17 @@ function renderAlert(){
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const venc=state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago==null&&r.vencimento&&new Date(r.vencimento+'T00:00:00')<hoje);
   const el=$('alert');
+  // divergencia de conferencia e dinheiro fora do lugar: aparece junto do vencido
+  const by=docsByParcela();
+  const div=state.itens.filter(r=>{const a=auditaParcela(r,by);return a&&a.alerta;});
+  const elD=$('alertAud');
+  if(elD){
+    if(div.length){elD.classList.add('show');
+      elD.innerHTML='<b>⚠ '+div.length+' parcela'+(div.length>1?'s':'')+' com divergência na conferência</b> ('+
+        div.slice(0,3).map(r=>esc(r.ref)).join(', ')+(div.length>3?' e mais '+(div.length-3):'')+
+        ') — o valor de algum documento não bate com o boleto. Veja a coluna Composição.';}
+    else elD.classList.remove('show');
+  }
   if(!venc.length){el.classList.remove('show');return;}
   el.classList.add('show');
   if(venc.length>=2)el.innerHTML='<span class="big">⚠ Risco de exclusão.</span> Há <b>'+venc.length+' parcelas vencidas</b> e não pagas. Pelo contrato (cláusula 10), <b>2 parcelas em atraso</b> já autorizam a exclusão da unidade — regularize com prioridade máxima. A multa é o menor problema aqui.';
@@ -1746,6 +1799,69 @@ function classificaPagamento(r){
           multa:bate?esp.multa:Math.round(delta*MULTA_PCT/(MULTA_PCT+JUROS_MES*(dias/30))*100)/100,
           juros:bate?esp.juros:null};
 }
+// A CONFERENCIA DO TRIO
+// Cada parcela tem tres documentos que precisam fechar entre si:
+//   boleto            o que a incorporadora cobra
+//   Pix Victor->Dudu  metade do boleto
+//   comprovante       o integral, da conta do Dudu (+ encargos, se houve atraso)
+// Antes cada um era conferido isolado e contra o valor de CONTRATO; ninguem
+// conferia o conjunto. Aqui a referencia e sempre o boleto, e o que falta
+// aparece junto com o que diverge — documento ausente tambem e informacao.
+const TOL_PIX=0.01;   // so o arredondamento de centavos: metade de valor impar nao e exata
+function auditaParcela(r,porParcela){
+  if(!r||r.tipo==='aporte')return null;
+  const ds=(porParcela&&porParcela[r.id])||[];
+  const acha=c=>ds.filter(d=>d.categoria===c).sort((a,b)=>
+     String(b.created_at||'').localeCompare(String(a.created_at||'')))[0]||null;
+  const dBol=acha('boleto'), dPix=acha('pix_socios'), dPag=acha('comprovante_pago');
+  if(!dBol&&!dPix&&!dPag)return null;                    // nada a conferir ainda
+  const bol=(r.valor_boleto!=null&&num(r.valor_boleto)>0)?num(r.valor_boleto):null;
+  const linhas=[]; let alerta=false;
+  const add=(rot,st,txt)=>{linhas.push({rot,st,txt}); if(st==='bad')alerta=true;};
+
+  add('Boleto', dBol?(bol!=null?'ok':'wait'):'none',
+      dBol?(bol!=null?BRL(bol,2):'anexado, valor não lido'):'não anexado');
+
+  if(dPix){
+    const v=dPix.valor_lido!=null?num(dPix.valor_lido):null;
+    if(bol==null)      add('Pix p/ Dudu','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
+    else if(v==null)   add('Pix p/ Dudu','wait','anexado, valor não lido');
+    else{
+      const esp=Math.round(bol*50)/100, d=Math.round((v-esp)*100)/100;
+      add('Pix p/ Dudu',Math.abs(d)<=TOL_PIX?'ok':'bad',
+          BRL(v,2)+(Math.abs(d)<=TOL_PIX?' = metade do boleto ✓'
+            :' · esperado '+BRL(esp,2)+' ('+(d>0?'+':'−')+BRL(Math.abs(d),2)+')'));
+    }
+  }else add('Pix p/ Dudu','none','não anexado');
+
+  if(dPag){
+    const v=dPag.valor_lido!=null?num(dPag.valor_lido):null;
+    if(bol==null)      add('Pagamento','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
+    else if(v==null)   add('Pagamento','wait','anexado, valor não lido');
+    else{
+      const d=Math.round((v-bol)*100)/100;
+      const dias=diasAtraso(r.vencimento,dPag.data_lida||r.data_pagamento);
+      if(Math.abs(d)<=0.02)                add('Pagamento','ok',BRL(v,2)+' = boleto ✓');
+      else if(d>0&&dias>0){
+        const esp=encargosEsperados(bol,r.vencimento,dPag.data_lida||r.data_pagamento);
+        const bate=esp&&Math.abs(esp.total-d)<=Math.max(1,d*0.05);
+        add('Pagamento',bate?'ok':'bad',BRL(v,2)+' · '+dias+' dia'+(dias>1?'s':'')+' de atraso, '+
+            (bate?'encargos conferem com o contrato ✓':'pago a mais '+BRL(d,2)+' mas pela regra seriam '+BRL(esp?esp.total:0,2)));
+      }
+      else if(d>0) add('Pagamento','bad',BRL(v,2)+' · '+BRL(d,2)+' acima do boleto sem atraso');
+      else         add('Pagamento','bad',BRL(v,2)+' · '+BRL(Math.abs(d),2)+' abaixo do boleto');
+    }
+  }else add('Pagamento','none','não anexado');
+
+  return {linhas,alerta,completa:!!(dBol&&dPix&&dPag)};
+}
+function auditoriaHTML(a){
+  if(!a)return '';
+  const ic={ok:'✓',bad:'⚠',wait:'⏳',none:'·'};
+  return '<div class="aud'+(a.alerta?' bad':'')+'">'+a.linhas.map(l=>
+    '<div class="al '+l.st+'"><span class="ai">'+ic[l.st]+'</span>'+
+    '<span class="ar">'+l.rot+'</span><span class="at">'+l.txt+'</span></div>').join('')+'</div>';
+}
 function decompoe(r){
   if(r.tipo==='aporte')return null;
   const base=num(r.valor_base);
@@ -1792,6 +1908,7 @@ function renderTable(c){
     const incc=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base)-num(r.juros)-num(r.multa):null;
     const dif=r.valor_pago!=null?num(r.valor_pago)-num(r.valor_base):null;
     const conta=decompoe(r);
+    const aud=auditaParcela(r,by);
     // o Pix ao socio e metade do que SERA PAGO: o boleto ja vem com INCC.
     // Usar a base do contrato subestimava (R$ 1.727,31 contra R$ 1.766,29 reais).
     const temBol=r.valor_boleto!=null&&num(r.valor_boleto)>0;
@@ -1806,7 +1923,7 @@ function renderTable(c){
       <td data-label="Data pgto"><input class="dt" type="date" value="${r.data_pagamento||''}" data-id="${r.id}" data-f="data_pagamento" ${canEdit?'':'disabled'}></td>
       <td data-label="Juros">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.juros)+'" data-raw="'+(r.juros!=null?r.juros:'')+'" data-id="'+r.id+'" data-f="juros" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
       <td data-label="Multa">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.multa)+'" data-raw="'+(r.multa!=null?r.multa:'')+'" data-id="'+r.id+'" data-f="multa" placeholder="0" '+(canEdit?'':'disabled')+'>'}</td>
-      <td class="contac${conta?'':' vazia'}" data-label="Composição">${contaHTML(conta)}</td>
+      <td class="contac${(conta||aud)?'':' vazia'}" data-label="Composição">${conta?contaHTML(conta):''}${auditoriaHTML(aud)}</td>
       <td data-label="Documentos">${canEdit?docChips(r.id,by):'<span class="proj">—</span>'}</td>`;
     tb.appendChild(tr);
   });
