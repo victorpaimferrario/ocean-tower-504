@@ -140,7 +140,10 @@ header h1 .num{color:var(--gold)}
 .ac-d{color:var(--verde,#2A8C5A);font-weight:600} .ac-d.neg{color:var(--coral)}
 .ac-q{display:block;font-size:10px;color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none}
 .ac-tot{background:rgba(28,124,140,.06);font-weight:600}
+.ac-av{margin-top:10px;padding:10px 12px;border-radius:9px;font-size:12.5px;line-height:1.5;
+       background:rgba(199,91,74,.09);border:1px solid rgba(199,91,74,.32)}
 .ac-nota{font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.45}
+.ac-fonte{font-size:11px;color:var(--muted);margin-top:6px;opacity:.85}
 @media(max-width:430px){
   .ac-r{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);
         font-size:11.5px;padding:7px 8px;gap:4px}
@@ -526,6 +529,7 @@ footer b{color:var(--ink)}
   <!-- Acompanhamento mensal: so o realizado. Anda um degrau a cada boleto pago. -->
   <div class="panel acmes" id="acMes" style="display:none">
     <div class="ac-h"><h3>📈 Meu dinheiro, mês a mês</h3><span class="ac-t" id="acTit">—</span></div>
+    <div class="ac-av" id="acAviso" style="display:none"></div>
     <div class="ac-top">
       <div class="ac-c"><div class="ac-l2">Já desembolsei</div>
         <div class="ac-v" id="acPago">—</div><div class="ac-s" id="acPagoS"></div></div>
@@ -540,6 +544,7 @@ footer b{color:var(--ink)}
       <div id="acLista"></div>
     </div>
     <p class="ac-nota" id="acNota"></p>
+    <p class="ac-fonte" id="acFonte"></p>
   </div>
 
   <div class="panel" id="pagCard">
@@ -2504,8 +2509,30 @@ function acompanhaMensal(){
     return Object.assign({},o,{label:MES[o.m]+'/'+String(o.y).slice(2),
       rend:o.lci-o.nominal, pct:o.nominal>0?(o.lci-o.nominal)/o.nominal:0});
   });
+  // A CONTA SO VALE SE A SERIE ESTIVER COMPLETA.
+  // fatorReal pula mes ausente (fator 1) — em silencio. Medido: sem o
+  // indices.json o rendimento aparecia como R$ 0; faltando um mes no meio, caia
+  // 37%; com a serie velha, 99%. Em todos os casos o numero PARECIA correto.
+  // Um indicador que erra calado e pior do que um que nao existe.
+  // Alem do mes AUSENTE, ha o mes PARCIAL: a serie 4391 e "CDI acumulado no
+  // mes" e o BCB publica o parcial enquanto o mes corre. Se a captura foi feita
+  // ANTES de o mes acabar, aquele valor nao e o fechamento. Virado o mes, o
+  // calculo usaria o parcial como se fosse final — em 1o/10, setembro capturado
+  // em 23/09 valeria 0,72% num mes que fecha perto de 1,05%.
+  const cap=SERIES.atualizado_em?new Date(SERIES.atualizado_em):null;
+  const capOk=cap&&isFinite(cap);
+  const falta=[], parcial=[];
+  let fy=pagos[0].d.getFullYear(), fm=pagos[0].d.getMonth()+1, g=0;
+  const ay=hoje.getFullYear(), am=hoje.getMonth()+1;
+  while((fy<ay||(fy===ay&&fm<am))&&g++<600){
+    const k=fy+'-'+String(fm).padStart(2,'0');
+    if(!SERIES.cdi||SERIES.cdi[k]==null)falta.push(k);
+    else if(capOk&&cap<new Date(fy,fm,0,23,59,59))parcial.push(k);
+    if(++fm>12){fm=1;fy++;}
+  }
   return {linhas, total:{nominal:tNom,lci:tLci,cdi:tCdi,rend:tLci-tNom,
-          pct:tNom>0?(tLci-tNom)/tNom:0}, hoje};
+          pct:tNom>0?(tLci-tNom)/tNom:0}, hoje, falta, parcial,
+          atualizado:SERIES.atualizado_em||null};
 }
 function renderAcompanha(){
   const box=$('acMes'); if(!box)return;
@@ -2538,6 +2565,25 @@ function renderAcompanha(){
      '<span class="ac-n">'+BRL(meu(t.nominal))+'</span>'+
      '<span class="ac-l">'+BRL(meu(t.lci))+'</span>'+
      '<span class="ac-d'+(t.rend>=0?'':' neg')+'">'+(t.rend>=0?'+':'−')+BRL(Math.abs(meu(t.rend)))+'</span></div>';
+  // aviso quando a serie do BCB nao cobre todo o periodo
+  const av=$('acAviso');
+  const MESN=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const nome=k=>MESN[+k.slice(5)-1]+'/'+k.slice(2,4);
+  const lista=arr=>arr.slice(0,4).map(nome).join(', ')+(arr.length>4?' e mais '+(arr.length-4):'');
+  if(a.falta.length||a.parcial.length){
+    av.style.display='';
+    const partes=[];
+    if(a.falta.length)partes.push('falta o índice de <b>'+esc(lista(a.falta))+'</b>');
+    if(a.parcial.length)partes.push('o índice de <b>'+esc(lista(a.parcial))+
+      '</b> foi capturado antes do mês fechar, então ainda é parcial');
+    av.innerHTML='⚠️ <b>Série do CDI incompleta</b> — '+partes.join('; e ')+
+      '. Os valores abaixo estão <b>subestimados</b>. O robô busca no Banco Central '+
+      'todo dia 1 e dia 12; se não normalizar, me avise.';
+  }else av.style.display='none';
+  const dt=a.atualizado?new Date(a.atualizado):null;
+  $('acFonte').innerHTML=dt&&isFinite(dt)
+    ? 'CDI do Banco Central · série atualizada em '+dt.toLocaleDateString('pt-BR')
+    : 'CDI do Banco Central';
   $('acNota').innerHTML='Cada linha é o que <b>saiu do seu bolso naquele mês</b>, '+
     'corrigido até <b>hoje</b> pelo CDI real do Banco Central — por isso os aportes '+
     'mais antigos rendem mais. Só parcelas pagas; sem projeção e sem premissa. '+
