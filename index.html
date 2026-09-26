@@ -119,6 +119,31 @@ header h1 .num{color:var(--gold)}
   border-radius:8px;font-family:'Fraunces',serif;font-weight:600;font-size:17px;color:var(--ink);
   background:#fff;font-variant-numeric:tabular-nums}
 .hq-f input[type=number]:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(28,124,140,.12)}
+/* Acompanhamento mensal — so o realizado, um degrau por boleto pago */
+.acmes{margin-top:14px}
+.ac-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.ac-h h3{margin:0}
+.ac-t{font-size:12.5px;color:var(--muted)}
+.ac-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px;margin-top:12px}
+.ac-c{border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-width:0}
+.ac-l2{font-size:11.5px;color:var(--muted);line-height:1.3}
+.ac-v{font-family:'Fraunces',serif;font-size:21px;font-weight:600;margin:3px 0 1px;line-height:1.1}
+.ac-v.up{color:var(--verde,#2A8C5A)} .ac-v.dn{color:var(--coral)}
+.ac-s{font-size:11.5px;color:var(--muted);line-height:1.35}
+.ac-tab{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ac-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr);
+      gap:6px;padding:8px 10px;font-size:12.5px;align-items:baseline;border-top:1px solid var(--line)}
+.ac-r:first-child{border-top:0}
+.ac-hd{background:rgba(0,0,0,.03);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ac-m{font-weight:600}
+.ac-n,.ac-l,.ac-d{text-align:right;font-variant-numeric:tabular-nums}
+.ac-d{color:var(--verde,#2A8C5A);font-weight:600} .ac-d.neg{color:var(--coral)}
+.ac-nota{font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.45}
+@media(max-width:430px){
+  .ac-r{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);
+        font-size:11.5px;padding:7px 8px;gap:4px}
+  .ac-hd{font-size:9.5px;letter-spacing:.02em}
+}
 /* "E se eu tivesse aplicado?" — reguas de renda fixa lado a lado */
 .seaplic{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card)}
 .sa-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:4px}
@@ -494,6 +519,25 @@ footer b{color:var(--ink)}
     <div class="kpi"><div class="k-label">Encargos pagos</div><div class="k-val" id="kEnc">—</div><div class="k-sub" id="kEncSub">juros e multa por atraso</div></div>
     <div class="kpi accent"><div class="k-label">Custo total projetado</div><div class="k-val" id="kAllin">—</div><div class="k-sub">parcelas + INCC + ITBI</div></div>
     <div class="kpi"><div class="k-label">Preço do m²</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
+  </div>
+
+  <!-- Acompanhamento mensal: so o realizado. Anda um degrau a cada boleto pago. -->
+  <div class="panel acmes" id="acMes" style="display:none">
+    <div class="ac-h"><h3>📈 Meu dinheiro, mês a mês</h3><span class="ac-t" id="acTit">—</span></div>
+    <div class="ac-top">
+      <div class="ac-c"><div class="ac-l2">Já desembolsei</div>
+        <div class="ac-v" id="acPago">—</div><div class="ac-s" id="acPagoS"></div></div>
+      <div class="ac-c"><div class="ac-l2">Valeria hoje na renda fixa</div>
+        <div class="ac-v" id="acLci">—</div><div class="ac-s" id="acLciS"></div></div>
+      <div class="ac-c"><div class="ac-l2">Deixei de ganhar</div>
+        <div class="ac-v" id="acDif">—</div><div class="ac-s" id="acDifS"></div></div>
+    </div>
+    <div class="ac-tab">
+      <div class="ac-r ac-hd"><span class="ac-m">mês</span><span class="ac-n">desembolsado</span>
+        <span class="ac-l">na renda fixa</span><span class="ac-d">rendimento</span></div>
+      <div id="acLista"></div>
+    </div>
+    <p class="ac-nota" id="acNota"></p>
   </div>
 
   <div class="panel" id="pagCard">
@@ -1954,7 +1998,7 @@ function render(){
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='com tudo: '+BRL(c.allin/AREA)+'/m²';
   {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderPlacar(c);renderSeAplic(c,analisar(c));renderTable(c);renderCharts(c);renderResumo(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
+  renderAlert();renderAcompanha();renderPlacar(c);renderSeAplic(c,analisar(c));renderTable(c);renderCharts(c);renderResumo(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
 }
 
 function renderAlert(){
@@ -2422,6 +2466,73 @@ function analisarRenda(a){
   return {ok:true,H,Pent,alug,vac,irA,liq1,yieldB,cap,yieldL,coc,pay,tir,tirReal,Pterm,liqTerm,moic,val,totalManter};
 }
 
+// ACOMPANHAMENTO MENSAL — so o que JA ACONTECEU.
+// Nenhuma projecao aqui: so parcelas efetivamente PAGAS e so a serie real do
+// Banco Central. E a conta corrente do investimento, que anda um degrau a cada
+// boleto pago — diferente do card de projecao, que responde "quanto vale na
+// entrega" e depende de premissa.
+// Mes corrente nao entra no rendimento: a serie do BCB so fecha o mes depois que
+// ele acaba, entao contabilizar setembro no dia 26 seria inventar meio mes.
+function acompanhaMensal(){
+  const porParc=docsByParcela();
+  const pagos=state.itens
+    .filter(r=>r.valor_pago!=null&&num(r.valor_pago)>0)
+    .map(r=>({d:dataDesembolso(r,porParc),v:num(r.valor_pago),ref:r.ref}))
+    .filter(p=>isFinite(p.d))
+    .sort((a,b)=>a.d-b.d);
+  if(!pagos.length)return null;
+  const pct=sv().pctcdi, hoje=new Date();
+  const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const linhas=[];
+  let y=pagos[0].d.getFullYear(), m=pagos[0].d.getMonth();
+  let guarda=0;
+  while((y<hoje.getFullYear()||(y===hoje.getFullYear()&&m<=hoje.getMonth()))&&guarda++<600){
+    const fimMes=new Date(y,m+1,0,23,59), ate=fimMes>hoje?hoje:fimMes;
+    let nominal=0,lci=0,cdi=0,n=0;
+    pagos.forEach(p=>{
+      if(p.d<=ate){
+        nominal+=p.v; n++;
+        lci+=p.v*fatorReal(SERIES.cdi,p.d,ate,pct);
+        cdi+=p.v*fatorReal(SERIES.cdi,p.d,ate);
+      }});
+    if(nominal>0)linhas.push({y,m,nominal,lci,cdi,n,
+      label:MES[m]+'/'+String(y).slice(2), rend:lci-nominal});
+    if(++m>11){m=0;y++;}
+  }
+  if(!linhas.length)return null;
+  const u=linhas[linhas.length-1], ant=linhas.length>1?linhas[linhas.length-2]:null;
+  return {linhas,ultimo:u,noMes:ant?u.rend-ant.rend:u.rend};
+}
+function renderAcompanha(){
+  const box=$('acMes'); if(!box)return;
+  const a=acompanhaMensal();
+  if(!a){box.style.display='none';return;}
+  box.style.display='';
+  const u=a.ultimo, meu=x=>x*PV;
+  $('acTit').textContent='até '+u.label.replace('/',' de 20');
+  $('acPago').textContent=BRL(meu(u.nominal));
+  $('acPagoS').textContent=u.n+' parcela'+(u.n>1?'s':'')+' paga'+(u.n>1?'s':'')+
+    ' · unidade '+BRL(u.nominal);
+  $('acLci').textContent=BRL(meu(u.lci));
+  $('acLciS').textContent='se estivesse numa LCI a '+Math.round(sv().pctcdi*100)+'% do CDI';
+  const dif=u.lci-u.nominal;
+  $('acDif').textContent=(dif>=0?'+':'−')+BRL(Math.abs(meu(dif)));
+  $('acDif').className='ac-v '+(dif>=0?'up':'dn');
+  $('acDifS').textContent='quanto o dinheiro teria rendido' +
+    (a.noMes?' · '+(a.noMes>=0?'+':'−')+BRL(Math.abs(meu(a.noMes)))+' só neste mês':'');
+  // ultimos 8 meses, do mais recente para o mais antigo
+  const ult=a.linhas.slice(-8).reverse();
+  $('acLista').innerHTML=ult.map(l=>
+    '<div class="ac-r"><span class="ac-m">'+esc(l.label)+'</span>'+
+    '<span class="ac-n">'+BRL(meu(l.nominal))+'</span>'+
+    '<span class="ac-l">'+BRL(meu(l.lci))+'</span>'+
+    '<span class="ac-d'+(l.rend>=0?'':' neg')+'">'+(l.rend>=0?'+':'−')+BRL(Math.abs(meu(l.rend)))+'</span></div>').join('');
+  $('acNota').innerHTML='Só o que <b>já aconteceu</b>: parcelas efetivamente pagas, '+
+    'corrigidas pelo CDI <b>real</b> do Banco Central da data de cada desembolso. '+
+    'Sem projeção e sem premissa. O mês corrente entra no desembolso, mas ainda não no '+
+    'rendimento — o Banco Central só fecha o índice depois que o mês acaba. '+
+    'Valores = <b>sua metade</b>.';
+}
 // "E SE EU TIVESSE APLICADO?"
 // Responde a pergunta na forma em que ela foi feita: cada desembolso corrigido
 // da data em que saiu do SEU bolso ate a entrega. Tres reguas, porque "CDI"
