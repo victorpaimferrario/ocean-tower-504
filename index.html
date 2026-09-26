@@ -119,6 +119,22 @@ header h1 .num{color:var(--gold)}
   border-radius:8px;font-family:'Fraunces',serif;font-weight:600;font-size:17px;color:var(--ink);
   background:#fff;font-variant-numeric:tabular-nums}
 .hq-f input[type=number]:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(28,124,140,.12)}
+/* "E se eu tivesse aplicado?" — reguas de renda fixa lado a lado */
+.seaplic{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card)}
+.sa-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:4px}
+.sa-h h3{font-family:'Fraunces',serif;font-size:17px;margin:0;font-weight:600}
+.sa-sub{font-size:12px;color:var(--muted)}
+.sa-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;margin-top:12px}
+.sa-c{border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-width:0}
+.sa-c.best{border-color:var(--teal);background:rgba(28,124,140,.05)}
+.sa-l{font-size:11.5px;color:var(--muted);line-height:1.3}
+.sa-v{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin:3px 0 1px;line-height:1.1}
+.sa-f{font-size:11.5px;color:var(--muted);line-height:1.35}
+.sa-verd{margin-top:12px;padding:11px 12px;border-radius:9px;font-size:13.5px;line-height:1.55}
+.sa-verd.pos{background:rgba(42,140,90,.09);border:1px solid rgba(42,140,90,.28)}
+.sa-verd.neg{background:rgba(199,91,74,.09);border:1px solid rgba(199,91,74,.28)}
+.sa-verd b{white-space:nowrap}
+.sa-nota{font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.45}
 .hq-note{font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.35}
 .hq-note.warn{color:var(--coral);font-weight:600}
 
@@ -605,6 +621,20 @@ footer b{color:var(--ink)}
       <div class="hq-note" id="m2Aviso"></div>
     </div></div>
     <p class="desc" id="plMeta" style="margin-top:10px;font-size:12.5px;padding:10px 12px;background:rgba(28,124,140,.06);border-radius:8px;line-height:1.6"></p>
+
+    <!-- "E se eu tivesse aplicado?": cada desembolso corrigido da data em que
+         SAIU DO SEU BOLSO ate a entrega. Serie real do BCB ate hoje, projecao
+         so no que falta. Tres reguas porque "CDI" sozinho e ambiguo: 100% bruto
+         nao existe (tem IR), e a LCI isenta a 90% costuma ganhar do CDB a 100%. -->
+    <div class="seaplic" id="seAplic">
+      <div class="sa-h">
+        <h3>E se eu tivesse aplicado em vez de comprar?</h3>
+        <span class="sa-sub" id="saSub">—</span>
+      </div>
+      <div class="sa-grid" id="saGrid"></div>
+      <div class="sa-verd" id="saVerd"></div>
+      <p class="sa-nota" id="saNota"></p>
+    </div>
   </div>
 
   <details class="det">
@@ -1924,7 +1954,7 @@ function render(){
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='com tudo: '+BRL(c.allin/AREA)+'/m²';
   {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
   $('cntPagas').textContent=npagas+' pagas';
-  renderAlert();renderPlacar(c);renderTable(c);renderCharts(c);renderResumo(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
+  renderAlert();renderPlacar(c);renderSeAplic(c,analisar(c));renderTable(c);renderCharts(c);renderResumo(c);renderCorrigido(c);renderCusto(c);renderRenda(c);renderDecisao(c);renderSens(c);renderEvol(c);
 }
 
 function renderAlert(){
@@ -2255,12 +2285,29 @@ function fatorReal(serie,d,ate,scale){
   scale=(scale==null)?1:scale; if(!serie)return 1;
   let f=1,y=d.getFullYear(),m=d.getMonth()+1,g=0;
   const ya=ate.getFullYear(),ma=ate.getMonth()+1;
+  // Dinheiro que entra no dia 30 NAO rende o mes inteiro. Creditar o mes cheio
+  // inflava a regua da renda fixa — e sempre contra o imovel: o Sinal 1, pago em
+  // 30/06, ganhava os 1,12% de junho inteiro tendo ficado aplicado 1 dia.
+  // O primeiro mes entra so pela fracao de dias em que o dinheiro esteve la.
+  const diasMes=new Date(y,m,0).getDate();
+  let fr=Math.min(1,Math.max(0,(diasMes-d.getDate()+1)/diasMes));
   while((y<ya||(y===ya&&m<ma))&&g++<600){
     const v=serie[y+'-'+String(m).padStart(2,'0')];
-    if(v!=null)f*=(1+(v/100)*scale);
+    if(v!=null)f*=Math.pow(1+(v/100)*scale,fr);
+    fr=1;
     if(++m>12){m=1;y++;}
   }
   return f;
+}
+// Quando o dinheiro saiu do SEU bolso. Nao e quando o Dudu pagou o boleto: e
+// quando voce mandou o Pix para ele. Sao contas diferentes e datas diferentes.
+function dataDesembolso(r,porParcela){
+  const ds=(porParcela&&porParcela[r.id])||[];
+  const pix=ds.filter(d=>d.categoria==='pix_socios'&&d.data_lida)
+              .map(d=>String(d.data_lida)).sort();
+  if(pix.length)return new Date(pix[0]+'T00:00:00');
+  if(r.valor_pago!=null&&r.data_pagamento)return new Date(r.data_pagamento+'T00:00:00');
+  return new Date((r.vencimento||'2026-06-01')+'T00:00:00');
 }
 function flowDate(r){const d=r.data_pagamento||r.vencimento;return d?new Date(d):T0;}
 function npv(rate,flows){return flows.reduce((s,f)=>s+f.cf/Math.pow(1+rate,f.t),0);}
@@ -2274,7 +2321,7 @@ function analisar(c,vendaOverride,entregaOverride){
   const taxa=s.cdi*s.pctcdi, isento=s.trib!=='trib';
   const HOJE=new Date();
   const ipca=(parseFloat($('ipca').value)||0)/100, inccA=Math.pow(1+c.imP,12)-1;
-  let totalNom=0,vfRF=0,nominalParc=0,pagoOuProj=0,aportesTot=0,corrIPCA=0,corrINCC=0,corrCDI=0,realizado=0,projetado=0;const flows=[];
+  let totalNom=0,vfRF=0,vfCDIliq=0,nominalParc=0,pagoOuProj=0,aportesTot=0,corrIPCA=0,corrINCC=0,corrCDI=0,realizado=0,projetado=0;const flows=[];
   // corrige cada desembolso: índice REAL (BCB) da data até hoje + PROJEÇÃO (slider) de hoje até a entrega.
   // renda fixa (vfRF)=CDI×%CDI líq. de IR · CDI=100% bruto · IPCA/INCC=correção pura. INCC real=boletos (taxa observada).
   const acumula=(val,d)=>{
@@ -2286,11 +2333,16 @@ function analisar(c,vendaOverride,entregaOverride){
     const rfBruto=val*fatorReal(SERIES.cdi,d,HOJE,s.pctcdi)*Math.pow(1+taxa,af);
     const anosTot=Math.max(0,yearsBetween(d,ENT));
     vfRF+=isento?rfBruto:val+(rfBruto-val)*(1-aliqIR(anosTot));
+    // CDB/Tesouro a 100% do CDI: o mesmo bruto do corrCDI, menos o IR regressivo
+    // aporte a aporte (cada um tem o seu proprio prazo, logo a sua aliquota).
+    const cdiBruto=val*fatorReal(SERIES.cdi,d,HOJE)*Math.pow(1+s.cdi,af);
+    vfCDIliq+=val+(cdiBruto-val)*(1-aliqIR(anosTot));
   };
+  const _porParc=docsByParcela();
   state.itens.forEach(r=>{
     if(r.tipo==='aporte'){if(r.valor_pago!=null){const d=flowDate(r),val=num(r.valor_pago);aportesTot+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});}return;}
     const val=r.valor_pago!=null?num(r.valor_pago):aPagar(r,c.imP);
-    const d=r.valor_pago!=null&&r.data_pagamento?new Date(r.data_pagamento):new Date(r.vencimento);
+    const d=dataDesembolso(r,_porParc);
     nominalParc+=num(r.valor_base);pagoOuProj+=val;totalNom+=val;acumula(val,d);flows.push({t:Math.max(0,yearsBetween(T0,d)),cf:-val});
   });
   // ITBI+registro so saem do bolso se voce ESCRITURAR. Na cessao de direitos quem
@@ -2333,7 +2385,8 @@ function analisar(c,vendaOverride,entregaOverride){
     inccProxy:pagoOuProj,
     venda,corret,custoVenda,isentoG,ipca,liquido,custosSaida,precoSugerido,tir,moic,tirReal,flows,
     cessao,custoEscrit,taxaCessaoPct,custoPct,custoFixoSaida,anosHoje,precoParaLiquidoPub:precoParaLiquido,
-    corrIPCA,corrINCC,corrCDI,inccA,precoMinIPCA,precoMinINCC,precoMinCDI,precoMinRF,realizado,projetado};
+    corrIPCA,corrINCC,corrCDI,vfCDIliq,precoMinCDIliq:precoParaLiquido(vfCDIliq),
+    inccA,precoMinIPCA,precoMinINCC,precoMinCDI,precoMinRF,realizado,projetado};
 }
 
 function analisarRenda(a){
@@ -2369,6 +2422,54 @@ function analisarRenda(a){
   return {ok:true,H,Pent,alug,vac,irA,liq1,yieldB,cap,yieldL,coc,pay,tir,tirReal,Pterm,liqTerm,moic,val,totalManter};
 }
 
+// "E SE EU TIVESSE APLICADO?"
+// Responde a pergunta na forma em que ela foi feita: cada desembolso corrigido
+// da data em que saiu do SEU bolso ate a entrega. Tres reguas, porque "CDI"
+// sozinho e ambiguo — e a diferenca entre elas muda o veredito:
+//   LCI/LCA 90% isento   o que voce realmente conseguiria sem risco e sem IR
+//   CDB 100% liq. de IR  o mesmo CDI, com o imposto que ele de fato paga
+//   CDI 100% bruto       o indice puro, que ninguem recebe — fica como referencia
+function renderSeAplic(c,a){
+  const el=$('saGrid'); if(!el)return;
+  const meu=x=>x*PV;                       // sua parte e metade de tudo
+  const reguas=[
+    {k:'LCI/LCA · 90% do CDI, isento', v:a.vfRF,
+     f:'sem IR — o teto realista de quem aplica sem risco'},
+    {k:'CDB · 100% do CDI, líq. de IR', v:a.vfCDIliq,
+     f:'mesmo CDI, já descontado o IR regressivo de cada aporte'},
+    {k:'CDI cheio · 100%, sem IR', v:a.corrCDI,
+     f:'o índice puro. Referência: ninguém recebe o CDI sem imposto'}
+  ];
+  const melhor=Math.max(a.vfRF,a.vfCDIliq);   // a melhor aplicação REAL
+  el.innerHTML=reguas.map(r=>
+    '<div class="sa-c'+(Math.abs(r.v-melhor)<0.01?' best':'')+'">'+
+    '<div class="sa-l">'+esc(r.k)+'</div>'+
+    '<div class="sa-v">'+BRL(meu(r.v))+'</div>'+
+    '<div class="sa-f">unidade '+BRL(r.v)+' · '+esc(r.f)+'</div></div>').join('');
+  $('saSub').textContent='seu desembolso de '+BRL(meu(a.totalNom))+
+    ' valeria isto na entrega ('+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'})+')';
+  const vd=$('saVerd');
+  if(a.venda>0){
+    const dif=a.liquido-melhor, ganhou=dif>=0;
+    vd.className='sa-verd '+(ganhou?'pos':'neg');
+    vd.innerHTML=(ganhou?'▲ ':'▼ ')+'Vendendo por <b>'+BRL(a.venda)+'</b>, sobram <b>'+
+      BRL(meu(a.liquido))+'</b> para você, contra <b>'+BRL(meu(melhor))+
+      '</b> da melhor aplicação. '+(ganhou?'O imóvel ganha por <b>':'A aplicação ganha por <b>')+
+      BRL(Math.abs(meu(dif)))+'</b>.';
+  }else{
+    vd.className='sa-verd';
+    vd.innerHTML='Para empatar com a melhor aplicação, a venda precisa deixar <b>'+
+      BRL(meu(melhor))+'</b> líquidos para você — preço bruto de <b>'+
+      BRL(a.precoParaLiquidoPub?a.precoParaLiquidoPub(melhor):0)+'</b>.';
+  }
+  const temReal=Object.keys(SERIES.cdi||{}).length>0;
+  $('saNota').innerHTML='Cada parcela rende a partir do dia em que o dinheiro saiu da sua conta '+
+    '(a data do seu Pix ao Dudu quando ela existe), e só pelos dias em que esteve aplicada — '+
+    'quem entra dia 30 não ganha o mês inteiro. '+
+    (temReal?'CDI <b>real</b> do Banco Central até hoje; projeção só no que falta. '
+            :'Série do Banco Central ainda não carregada — usando projeção para tudo. ')+
+    'Números grandes = <b>sua metade</b>; o valor da unidade vem abaixo.';
+}
 function renderCorrigido(c){
   const a=analisar(c);
   $('ccData').textContent='entrega '+a.ENT.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
