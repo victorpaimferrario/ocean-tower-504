@@ -1205,10 +1205,25 @@ async function uploadFiles(fileList,catId,statusId,inpId){
     // guarda o valor/data extraidos: sem isso a conferencia do trio
     // boleto / Pix / pagamento so existiria no instante do upload
     const _pr=state.itens.find(x=>String(x.id)===String(parcela));
-    // folga maior no pagamento: pode trazer juros e multa de atraso
-    const vDoc=(lido&&_pr)?(cat==='comprovante_pago'
-                            ?valorPagoLido(lido.valores,refDoc(_pr,cat).alvo)
-                            :valorProximo(lido.valores,refDoc(_pr,cat).alvo,0.15)):null;
+    // UM PAGAMENTO PODE VIR PARTIDO EM VARIOS DOCUMENTOS.
+    // Aconteceu: o painel sugeriu a metade errada, Victor mandou R$ 1.727,31 e
+    // depois o complemento de R$ 38,98. Mirando sempre no TOTAL (R$ 1.766,29), a
+    // faixa de ±15% ia de R$ 1.501 a R$ 2.031 — os R$ 38,98 caiam fora e eram
+    // DESCARTADOS. O valor nunca era lido, e a conferencia acusava divergencia
+    // num pagamento que estava certo. O sistema so aceitava um pagamento.
+    // Agora: tenta o total; se nao achar, tenta o SALDO que ainda falta.
+    const vDoc=(lido&&_pr)?(function(){
+      const ref=refDoc(_pr,cat);
+      const jaLido=(docs||[]).filter(d=>String(d.parcela_id)===String(_pr.id)
+                                      &&d.categoria===cat&&d.valor_lido!=null)
+                             .reduce((s,d)=>s+num(d.valor_lido),0);
+      const saldo=Math.round((ref.alvo-jaLido)*100)/100;
+      let v=cat==='comprovante_pago'?valorPagoLido(lido.valores,ref.alvo)
+                                    :valorProximo(lido.valores,ref.alvo,0.15);
+      if(v==null&&saldo>0.01&&saldo<ref.alvo-0.01)
+        v=valorProximo(lido.valores,saldo,0.15);
+      return v;
+    })():null;
     const dDoc=(lido&&lido.datas&&lido.datas.length)?lido.datas.slice().sort().pop():null;
     const ins=await sb.from('ocean504_docs').insert({categoria:cat,parcela_id:parcela?+parcela:null,titulo:file.name,arquivo:path,tamanho:file.size,mime:file.type||null,enviado_por:currentEmail,valor_lido:vDoc,data_lida:dDoc}).select('id').single();
     if(ins.error){fail++;await sb.storage.from(BUCKET).remove([path]);upMsg(st,'Erro ao indexar '+file.name);continue;}
@@ -1815,6 +1830,17 @@ function openDocMgmt(pid){
   renderDocMgmt();
   const m=$('docMgmt');m.classList.add('show');m.setAttribute('aria-hidden','false');
 }
+async function salvaValorDoc(id,txt){
+  if(!canEdit){setSave('🔒 entre para editar');return;}
+  const v=(txt==null||String(txt).trim()==='')?null:parseBRnum(txt);
+  if(v!=null&&(!isFinite(v)||v<0)){setSave('Valor inválido');return;}
+  setSave('Salvando…');
+  const {error}=await sb.from('ocean504_docs').update({valor_lido:v}).eq('id',id);
+  if(error){setSave('Erro: '+error.message);return;}
+  const d=(docs||[]).find(x=>x.id===id); if(d)d.valor_lido=v;
+  setSave('Salvo ✓');
+  renderDocMgmt(); render();
+}
 function closeDocMgmt(){const m=$('docMgmt');m.classList.remove('show');m.setAttribute('aria-hidden','true');}
 function renderDocMgmt(){
   const list=(docs||[]).filter(d=>String(d.parcela_id)===String(_dgParcela));
@@ -1828,6 +1854,10 @@ function renderDocMgmt(){
         <div class="dc-meta"><span class="cat">${CAT_LABEL[d.categoria]||esc(d.categoria)}</span></div>
         <label class="modal-l" style="margin-top:6px">Vinculada à parcela</label>
         <select class="relink" data-id="${d.id}">${sel}</select>
+        <label class="modal-l" style="margin-top:6px">Valor deste documento (R$)</label>
+        <input class="dvlr" type="text" inputmode="decimal" data-id="${d.id}"
+               value="${moneyIn(d.valor_lido)}" data-raw="${d.valor_lido!=null?d.valor_lido:''}"
+               placeholder="não lido — digite para conferir">
       </div>
       <div class="dc-acts">
         <button class="docbtn" data-open="${ep}">Abrir</button>
@@ -1836,6 +1866,13 @@ function renderDocMgmt(){
   }).join('');
   $('dgList').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openDoc(decodeURIComponent(b.dataset.open)));
   $('dgList').querySelectorAll('.relink').forEach(s=>s.onchange=()=>relinkDoc(+s.dataset.id,+s.value));
+  // Quando a leitura nao pega o valor (foto ruim, PDF de imagem, valor parcial),
+  // sem isso nao havia NENHUM caminho para fechar a conferencia: o documento
+  // ficava para sempre em "valor nao lido".
+  $('dgList').querySelectorAll('.dvlr').forEach(inp=>{
+    inp.addEventListener('focus',()=>{inp.value=inp.dataset.raw||'';inp.select&&inp.select();});
+    inp.addEventListener('change',()=>salvaValorDoc(+inp.dataset.id,inp.value));
+  });
   $('dgList').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteDoc(+b.dataset.del,decodeURIComponent(b.dataset.path)));
 }
 async function relinkDoc(id,newPid){
@@ -1992,12 +2029,18 @@ const TOL_PIX=0.01;   // so o arredondamento de centavos: metade de valor impar 
 // senao vale um documento SOZINHO se ele fecha; senao mostra a soma e diverge.
 function conciliaDocs(docs,alvo,tol){
   const lidos=docs.filter(d=>d.valor_lido!=null).map(d=>num(d.valor_lido));
+  const semValor=docs.length-lidos.length;
   if(!lidos.length)return {v:null,modo:'sem_valor',n:docs.length};
   const soma=Math.round(lidos.reduce((a,b)=>a+b,0)*100)/100;
   if(Math.abs(soma-alvo)<=tol)return {v:soma,modo:lidos.length>1?'soma':'unico',n:lidos.length};
   const bate=lidos.find(v=>Math.abs(v-alvo)<=tol);
-  if(bate!=null)return {v:bate,modo:'individual',n:lidos.length};
-  // nada fecha: devolve o maior (num comprovante de pagamento o total e o maior)
+  if(bate!=null)return {v:bate,modo:'individual',n:lidos.length,semValor};
+  // Falta ler algum documento: NAO da para afirmar divergencia, porque o que
+  // falta pode estar exatamente no anexo que nao foi lido. Foi o caso real do
+  // Pix complementar de R$ 38,98, que o painel acusou como erro quando na
+  // verdade so nao tinha conseguido ler o valor dele.
+  if(semValor>0)return {v:soma,soma,falta:Math.round((alvo-soma)*100)/100,
+                        modo:'incompleto',n:lidos.length,semValor};
   return {v:lidos.reduce((a,b)=>b>a?b:a),soma,modo:'diverge',n:lidos.length};
 }
 function auditaParcela(r,porParcela){
@@ -2034,6 +2077,9 @@ function auditaParcela(r,porParcela){
     const c=ref!=null?conciliaDocs(pixDocs,esp,TOL_PIX):{v:null,modo:'sem_ref'};
     if(ref==null)               add('Pix p/ Dudu','wait','aguardando o boleto para conferir');
     else if(c.modo==='sem_valor')add('Pix p/ Dudu','wait',(pixDocs.length>1?pixDocs.length+' anexados':'anexado')+', valor não lido');
+    else if(c.modo==='incompleto')add('Pix p/ Dudu','wait',BRL(c.soma,2)+' lidos em '+c.n+' de '+
+                                     (c.n+c.semValor)+' Pix · '+(c.falta>0?'faltam '+BRL(c.falta,2)+' — informe o valor do anexo não lido'
+                                                                          :'confira o anexo não lido'));
     else if(c.modo==='diverge') add('Pix p/ Dudu','bad',BRL(c.soma,2)+(c.n>1?' ('+c.n+' Pix somados)':'')+
                                      ' · esperado '+BRL(esp,2)+' ('+(c.soma>esp?'+':'−')+BRL(Math.abs(c.soma-esp),2)+')');
     else add('Pix p/ Dudu','ok',BRL(c.v,2)+(c.modo==='soma'?' em '+c.n+' Pix':'')+
@@ -2047,6 +2093,8 @@ function auditaParcela(r,porParcela){
     const v=cp.v;
     if(ref==null)      add('Pagamento','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
     else if(cp.modo==='sem_valor')add('Pagamento','wait',(pagDocs.length>1?pagDocs.length+' anexados':'anexado')+', valor não lido');
+    else if(cp.modo==='incompleto')add('Pagamento','wait',BRL(cp.soma,2)+' lidos em '+cp.n+' de '+
+                                       (cp.n+cp.semValor)+' comprovantes · informe o valor do que faltou');
     else{
       const d=Math.round((v-ref)*100)/100;
       const dias=diasAtraso(r.vencimento,dPag.data_lida||r.data_pagamento);
