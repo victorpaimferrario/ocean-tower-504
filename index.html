@@ -138,6 +138,8 @@ header h1 .num{color:var(--gold)}
 .ac-m{font-weight:600}
 .ac-n,.ac-l,.ac-d{text-align:right;font-variant-numeric:tabular-nums}
 .ac-d{color:var(--verde,#2A8C5A);font-weight:600} .ac-d.neg{color:var(--coral)}
+.ac-q{display:block;font-size:10px;color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none}
+.ac-tot{background:rgba(28,124,140,.06);font-weight:600}
 .ac-nota{font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.45}
 @media(max-width:430px){
   .ac-r{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);
@@ -534,7 +536,7 @@ footer b{color:var(--ink)}
     </div>
     <div class="ac-tab">
       <div class="ac-r ac-hd"><span class="ac-m">mês</span><span class="ac-n">desembolsado</span>
-        <span class="ac-l">na renda fixa</span><span class="ac-d">rendimento</span></div>
+        <span class="ac-l">vale hoje</span><span class="ac-d">rendeu</span></div>
       <div id="acLista"></div>
     </div>
     <p class="ac-nota" id="acNota"></p>
@@ -2483,55 +2485,64 @@ function acompanhaMensal(){
   if(!pagos.length)return null;
   const pct=sv().pctcdi, hoje=new Date();
   const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  const linhas=[];
-  let y=pagos[0].d.getFullYear(), m=pagos[0].d.getMonth();
-  let guarda=0;
-  while((y<hoje.getFullYear()||(y===hoje.getFullYear()&&m<=hoje.getMonth()))&&guarda++<600){
-    const fimMes=new Date(y,m+1,0,23,59), ate=fimMes>hoje?hoje:fimMes;
-    let nominal=0,lci=0,cdi=0,n=0;
-    pagos.forEach(p=>{
-      if(p.d<=ate){
-        nominal+=p.v; n++;
-        lci+=p.v*fatorReal(SERIES.cdi,p.d,ate,pct);
-        cdi+=p.v*fatorReal(SERIES.cdi,p.d,ate);
-      }});
-    if(nominal>0)linhas.push({y,m,nominal,lci,cdi,n,
-      label:MES[m]+'/'+String(y).slice(2), rend:lci-nominal});
-    if(++m>11){m=0;y++;}
-  }
-  if(!linhas.length)return null;
-  const u=linhas[linhas.length-1], ant=linhas.length>1?linhas[linhas.length-2]:null;
-  return {linhas,ultimo:u,noMes:ant?u.rend-ant.rend:u.rend};
+  // Cada aporte e corrigido da data DELE ate HOJE — nao ate o fim do mes em que
+  // entrou. Antes cada linha era a foto daquele mes, e ali o valor na renda fixa
+  // nasce sempre igual ao desembolsado: a coluna repetia o numero e nao dizia
+  // nada. O que interessa e quanto aquele dinheiro JA rendeu ate agora.
+  const porMes={}; let tNom=0,tLci=0,tCdi=0;
+  pagos.forEach(p=>{
+    const k=p.d.getFullYear()+'-'+String(p.d.getMonth()+1).padStart(2,'0');
+    const lci=p.v*fatorReal(SERIES.cdi,p.d,hoje,pct);
+    const cdi=p.v*fatorReal(SERIES.cdi,p.d,hoje);
+    const o=porMes[k]||(porMes[k]={y:p.d.getFullYear(),m:p.d.getMonth(),
+                                   nominal:0,lci:0,cdi:0,n:0,refs:[]});
+    o.nominal+=p.v; o.lci+=lci; o.cdi+=cdi; o.n++; o.refs.push(p.ref);
+    tNom+=p.v; tLci+=lci; tCdi+=cdi;
+  });
+  const linhas=Object.keys(porMes).sort().map(k=>{
+    const o=porMes[k];
+    return Object.assign({},o,{label:MES[o.m]+'/'+String(o.y).slice(2),
+      rend:o.lci-o.nominal, pct:o.nominal>0?(o.lci-o.nominal)/o.nominal:0});
+  });
+  return {linhas, total:{nominal:tNom,lci:tLci,cdi:tCdi,rend:tLci-tNom,
+          pct:tNom>0?(tLci-tNom)/tNom:0}, hoje};
 }
 function renderAcompanha(){
   const box=$('acMes'); if(!box)return;
   const a=acompanhaMensal();
   if(!a){box.style.display='none';return;}
   box.style.display='';
-  const u=a.ultimo, meu=x=>x*PV;
-  $('acTit').textContent='até '+u.label.replace('/',' de 20');
-  $('acPago').textContent=BRL(meu(u.nominal));
-  $('acPagoS').textContent=u.n+' parcela'+(u.n>1?'s':'')+' paga'+(u.n>1?'s':'')+
-    ' · unidade '+BRL(u.nominal);
-  $('acLci').textContent=BRL(meu(u.lci));
-  $('acLciS').textContent='se estivesse numa LCI a '+Math.round(sv().pctcdi*100)+'% do CDI';
-  const dif=u.lci-u.nominal;
-  $('acDif').textContent=(dif>=0?'+':'−')+BRL(Math.abs(meu(dif)));
-  $('acDif').className='ac-v '+(dif>=0?'up':'dn');
-  $('acDifS').textContent='quanto o dinheiro teria rendido' +
-    (a.noMes?' · '+(a.noMes>=0?'+':'−')+BRL(Math.abs(meu(a.noMes)))+' só neste mês':'');
-  // ultimos 8 meses, do mais recente para o mais antigo
-  const ult=a.linhas.slice(-8).reverse();
+  const t=a.total, meu=x=>x*PV;
+  $('acTit').textContent='atualizado em '+a.hoje.toLocaleDateString('pt-BR');
+  $('acPago').textContent=BRL(meu(t.nominal));
+  const np=a.linhas.reduce((n,l)=>n+l.n,0);
+  $('acPagoS').textContent=np+' parcela'+(np>1?'s':'')+' paga'+(np>1?'s':'')+
+    ' · unidade '+BRL(t.nominal);
+  $('acLci').textContent=BRL(meu(t.lci));
+  $('acLciS').textContent='se estivesse numa LCI a '+Math.round(sv().pctcdi*100)+
+    '% do CDI · a 100% seria '+BRL(meu(t.cdi));
+  $('acDif').textContent=(t.rend>=0?'+':'−')+BRL(Math.abs(meu(t.rend)));
+  $('acDif').className='ac-v '+(t.rend>=0?'up':'dn');
+  $('acDifS').textContent=PCT(t.pct*100,2)+' sobre tudo o que você já pôs';
+  // do mais recente para o mais antigo; os antigos sao os que mais renderam
+  const ult=a.linhas.slice(-12).reverse();
   $('acLista').innerHTML=ult.map(l=>
-    '<div class="ac-r"><span class="ac-m">'+esc(l.label)+'</span>'+
+    '<div class="ac-r"><span class="ac-m">'+esc(l.label)+
+      '<span class="ac-q">'+esc(l.refs.length>1?l.refs.length+' parcelas':l.refs[0])+'</span></span>'+
     '<span class="ac-n">'+BRL(meu(l.nominal))+'</span>'+
     '<span class="ac-l">'+BRL(meu(l.lci))+'</span>'+
-    '<span class="ac-d'+(l.rend>=0?'':' neg')+'">'+(l.rend>=0?'+':'−')+BRL(Math.abs(meu(l.rend)))+'</span></div>').join('');
-  $('acNota').innerHTML='Só o que <b>já aconteceu</b>: parcelas efetivamente pagas, '+
-    'corrigidas pelo CDI <b>real</b> do Banco Central da data de cada desembolso. '+
-    'Sem projeção e sem premissa. O mês corrente entra no desembolso, mas ainda não no '+
-    'rendimento — o Banco Central só fecha o índice depois que o mês acaba. '+
-    'Valores = <b>sua metade</b>.';
+    '<span class="ac-d'+(l.rend>=0?'':' neg')+'">'+(l.rend>=0?'+':'−')+BRL(Math.abs(meu(l.rend)))+
+      '<span class="ac-q">'+PCT(l.pct*100,2)+'</span></span></div>').join('')
+    +'<div class="ac-r ac-tot"><span class="ac-m">total'+
+      (a.linhas.length>12?' <span class="ac-q">'+a.linhas.length+' meses</span>':'')+'</span>'+
+     '<span class="ac-n">'+BRL(meu(t.nominal))+'</span>'+
+     '<span class="ac-l">'+BRL(meu(t.lci))+'</span>'+
+     '<span class="ac-d'+(t.rend>=0?'':' neg')+'">'+(t.rend>=0?'+':'−')+BRL(Math.abs(meu(t.rend)))+'</span></div>';
+  $('acNota').innerHTML='Cada linha é o que <b>saiu do seu bolso naquele mês</b>, '+
+    'corrigido até <b>hoje</b> pelo CDI real do Banco Central — por isso os aportes '+
+    'mais antigos rendem mais. Só parcelas pagas; sem projeção e sem premissa. '+
+    'O mês em curso ainda não rende: o Banco Central só fecha o índice depois que '+
+    'o mês acaba. Valores = <b>sua metade</b>.';
 }
 // "E SE EU TIVESSE APLICADO?"
 // Responde a pergunta na forma em que ela foi feita: cada desembolso corrigido
