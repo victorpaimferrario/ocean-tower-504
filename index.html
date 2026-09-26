@@ -909,7 +909,10 @@ footer b{color:var(--ink)}
 </div>
 
 <script>
-const BRL=(n,d=0)=>'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+// Centavos por padrao: num painel de dinheiro, R$ 78 e R$ 78,00 nao sao a mesma
+// informacao — o primeiro deixa a duvida de estar arredondado. Graficos passam
+// 0 explicitamente, porque ali o centavo so polui o rotulo.
+const BRL=(n,d=2)=>'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const PCT=(n,d=1)=>(n||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
 // formato monetário p/ inputs: "1.234,56" (centavos só quando há); parse aceita "1.234,56" e "1234"/"1234.56"
 const numBR=n=>{if(n==null||n==='')return '';const x=+n;return x.toLocaleString('pt-BR',{minimumFractionDigits:(x%1?2:0),maximumFractionDigits:2});};
@@ -1847,7 +1850,7 @@ function initCharts(){
     {type:'line',label:'Projetado',data:[],borderColor:'#9FB7BC',borderDash:[5,4],fill:false,tension:.25,pointRadius:0},
     {type:'line',label:'Realizado',data:[],borderColor:'#1C7C8C',backgroundColor:'rgba(28,124,140,.12)',fill:true,tension:.25,pointRadius:0}]},
     options:{maintainAspectRatio:false,layout:{padding:{top:18,right:34}},plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},
-      datalabels:{align:'top',color:c=>c.dataset.borderColor,font:{size:11,weight:'600'},formatter:(v,ctx)=>{const d=ctx.dataset.data;let li=-1;for(let i=0;i<d.length;i++)if(d[i]!=null)li=i;return ctx.dataIndex===li&&v!=null?BRL(v):'';}}},
+      datalabels:{align:'top',color:c=>c.dataset.borderColor,font:{size:11,weight:'600'},formatter:(v,ctx)=>{const d=ctx.dataset.data;let li=-1;for(let i=0;i<d.length;i++)if(d[i]!=null)li=i;return ctx.dataIndex===li&&v!=null?BRL(v,0):'';}}},
       scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
   charts.ano=new Chart($('cAno'),{type:'bar',plugins:[ChartDataLabels],data:{labels:[],datasets:[
     {label:'Realizado',data:[],backgroundColor:'#1C7C8C',borderRadius:3},
@@ -1857,18 +1860,18 @@ function initCharts(){
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
   charts.comp=new Chart($('cComp'),{type:'doughnut',plugins:[ChartDataLabels],data:{labels:['Pago real','Projeção saldo','Aportes','ITBI/registro'],
     datasets:[{data:[],backgroundColor:['#1C7C8C','#9FB7BC','#C2912E','#0E4D5C','#BF4A30'],borderWidth:2,borderColor:'#fff'}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)}},
-      datalabels:{color:'#fff',font:{size:10,weight:'600'},formatter:(v,ctx)=>{const t=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+(+b||0),0);return v>t*0.05?BRL(v):'';}}}}});
+    options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed,0)}},
+      datalabels:{color:'#fff',font:{size:10,weight:'600'},formatter:(v,ctx)=>{const t=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+(+b||0),0);return v>t*0.05?BRL(v,0):'';}}}}});
   charts.ret=new Chart($('cRet'),{type:'bar',plugins:[ChartDataLabels],data:{labels:['Sai do bolso','Renda fixa (entrega)'],
     datasets:[{data:[],backgroundColor:['#0E4D5C','#2E7D52'],borderRadius:4}]},
-    options:{maintainAspectRatio:false,layout:{padding:{top:22}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.y)}},
-      datalabels:{anchor:'end',align:'top',color:'#13262B',font:{weight:'600',size:12},formatter:v=>BRL(v)}},
+    options:{maintainAspectRatio:false,layout:{padding:{top:22}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.y,0)}},
+      datalabels:{anchor:'end',align:'top',color:'#13262B',font:{weight:'600',size:12},formatter:v=>BRL(v,0)}},
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
   charts.evol=new Chart($('cEvol'),{plugins:[ChartDataLabels],data:{labels:[],datasets:[
     {type:'line',label:'INCC pago acumulado',data:[],borderColor:'#C2912E',backgroundColor:'rgba(194,145,46,.12)',fill:true,tension:.25,pointRadius:3},
     {type:'line',label:'Custo de oportunidade acumulado',data:[],borderColor:'#1C7C8C',borderDash:[5,4],fill:false,tension:.25,pointRadius:3}]},
-    options:{maintainAspectRatio:false,layout:{padding:{top:18,right:34}},plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}},
-      datalabels:{align:'top',color:c=>c.dataset.borderColor,font:{size:11,weight:'600'},formatter:(v,ctx)=>{const d=ctx.dataset.data;let li=-1;for(let i=0;i<d.length;i++)if(d[i]!=null)li=i;return ctx.dataIndex===li&&v!=null?BRL(v):'';}}},
+    options:{maintainAspectRatio:false,layout:{padding:{top:18,right:34}},plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y,0)}},
+      datalabels:{align:'top',color:c=>c.dataset.borderColor,font:{size:11,weight:'600'},formatter:(v,ctx)=>{const d=ctx.dataset.data;let li=-1;for(let i=0;i<d.length;i++)if(d[i]!=null)li=i;return ctx.dataIndex===li&&v!=null?BRL(v,0):'';}}},
       scales:{x:{grid:{display:false}},y:{grid:{color:gridc},ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
   // a corrida: minha fatia do imóvel × cada índice, mês a mês (cheio=realizado, tracejado=projeção)
   const dashFut=ctx=>ctx.p0DataIndex>=(ctx.chart.$iHoje||0)?[6,4]:undefined;
@@ -1886,7 +1889,7 @@ function initCharts(){
     options:{maintainAspectRatio:false,layout:{padding:{top:20,right:56}},
       interaction:{mode:'index',intersect:false},
       plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},
-        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y,0)}},
         datalabels:{align:'right',offset:2,color:c=>c.dataset.borderColor,font:{size:10.5,weight:'600'},
           // no celular os 5 rótulos se atropelam: mostra só no toque (tooltip)
           formatter:(v,ctx)=>{const d=ctx.dataset.data;
