@@ -144,10 +144,20 @@ header h1 .num{color:var(--gold)}
        background:rgba(199,91,74,.09);border:1px solid rgba(199,91,74,.32)}
 .ac-nota{font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.45}
 .ac-fonte{font-size:11px;color:var(--muted);margin-top:6px;opacity:.85}
+/* No celular, quatro colunas de valor com centavos nao cabem: "R$ 11.875,27"
+   pede ~75px e sobram ~290px para tudo. Em vez de encolher a fonte a ponto de
+   nao se ler dinheiro, cada mes vira duas linhas — o par (o que pus / quanto
+   virou) fica um embaixo do outro, que e como se le a conta mesmo. */
 @media(max-width:430px){
-  .ac-r{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);
-        font-size:11.5px;padding:7px 8px;gap:4px}
-  .ac-hd{font-size:9.5px;letter-spacing:.02em}
+  .ac-r{grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:9px 10px;font-size:12.5px}
+  .ac-hd{display:none}
+  .ac-m{grid-column:1;grid-row:1}
+  .ac-n{grid-column:2;grid-row:1}
+  .ac-l{grid-column:1;grid-row:2;text-align:left;font-size:11.5px;color:var(--muted)}
+  .ac-l::before{content:'virou ';opacity:.8}
+  .ac-d{grid-column:2;grid-row:2}
+  .ac-d .ac-q{display:inline;margin-left:5px}
+  .ac-tot .ac-l::before{content:'virou '}
 }
 /* "E se eu tivesse aplicado?" — reguas de renda fixa lado a lado */
 .seaplic{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card)}
@@ -526,27 +536,6 @@ footer b{color:var(--ink)}
     <div class="kpi"><div class="k-label">Preço do m²</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
 
-  <!-- Acompanhamento mensal: so o realizado. Anda um degrau a cada boleto pago. -->
-  <div class="panel acmes" id="acMes" style="display:none">
-    <div class="ac-h"><h3>📈 Meu dinheiro, mês a mês</h3><span class="ac-t" id="acTit">—</span></div>
-    <div class="ac-av" id="acAviso" style="display:none"></div>
-    <div class="ac-top">
-      <div class="ac-c"><div class="ac-l2">Já desembolsei</div>
-        <div class="ac-v" id="acPago">—</div><div class="ac-s" id="acPagoS"></div></div>
-      <div class="ac-c"><div class="ac-l2">Valeria hoje na renda fixa</div>
-        <div class="ac-v" id="acLci">—</div><div class="ac-s" id="acLciS"></div></div>
-      <div class="ac-c"><div class="ac-l2">Deixei de ganhar</div>
-        <div class="ac-v" id="acDif">—</div><div class="ac-s" id="acDifS"></div></div>
-    </div>
-    <div class="ac-tab">
-      <div class="ac-r ac-hd"><span class="ac-m">mês</span><span class="ac-n">desembolsado</span>
-        <span class="ac-l">vale hoje</span><span class="ac-d">rendeu</span></div>
-      <div id="acLista"></div>
-    </div>
-    <p class="ac-nota" id="acNota"></p>
-    <p class="ac-fonte" id="acFonte"></p>
-  </div>
-
   <div class="panel" id="pagCard">
     <h3>💰 Documentos de pagamento</h3>
     <p class="desc">Boleto, comprovante do seu Pix p/ Dudu e comprovante de pagamento. Ficam vinculados à parcela e aparecem na coluna <b>Docs</b> da tabela acima.</p>
@@ -686,6 +675,27 @@ footer b{color:var(--ink)}
       <div class="sa-verd" id="saVerd"></div>
       <p class="sa-nota" id="saNota"></p>
     </div>
+  </div>
+
+  <!-- Acompanhamento mensal: so o realizado. Anda um degrau a cada boleto pago. -->
+  <div class="panel acmes" id="acMes" style="display:none">
+    <div class="ac-h"><h3>📈 Meu dinheiro, mês a mês</h3><span class="ac-t" id="acTit">—</span></div>
+    <div class="ac-av" id="acAviso" style="display:none"></div>
+    <div class="ac-top">
+      <div class="ac-c"><div class="ac-l2">Já desembolsei</div>
+        <div class="ac-v" id="acPago">—</div><div class="ac-s" id="acPagoS"></div></div>
+      <div class="ac-c"><div class="ac-l2">Valeria hoje na renda fixa</div>
+        <div class="ac-v" id="acLci">—</div><div class="ac-s" id="acLciS"></div></div>
+      <div class="ac-c"><div class="ac-l2">Deixei de ganhar</div>
+        <div class="ac-v" id="acDif">—</div><div class="ac-s" id="acDifS"></div></div>
+    </div>
+    <div class="ac-tab">
+      <div class="ac-r ac-hd"><span class="ac-m">mês</span><span class="ac-n">desembolsado</span>
+        <span class="ac-l">vale hoje</span><span class="ac-d">rendeu</span></div>
+      <div id="acLista"></div>
+    </div>
+    <p class="ac-nota" id="acNota"></p>
+    <p class="ac-fonte" id="acFonte"></p>
   </div>
 
   <details class="det">
@@ -2554,8 +2564,10 @@ function renderAcompanha(){
   $('acDif').textContent=(t.rend>=0?'+':'−')+BRL(Math.abs(meu(t.rend)));
   $('acDif').className='ac-v '+(t.rend>=0?'up':'dn');
   $('acDifS').textContent=PCT(t.pct*100,2)+' sobre tudo o que você já pôs';
-  // do mais recente para o mais antigo; os antigos sao os que mais renderam
-  const ult=a.linhas.slice(-12).reverse();
+  // Ordem crescente: a leitura e uma linha do tempo, e comeca pelo comeco.
+  // Sem janela — cortar os mais antigos esconderia justamente os aportes que
+  // mais renderam, que sao os que dao sentido a coluna.
+  const ult=a.linhas;
   $('acLista').innerHTML=ult.map(l=>
     '<div class="ac-r"><span class="ac-m">'+esc(l.label)+
       '<span class="ac-q">'+esc(l.refs.length>1?l.refs.length+' parcelas':l.refs[0])+'</span></span>'+
@@ -2564,7 +2576,7 @@ function renderAcompanha(){
     '<span class="ac-d'+(l.rend>=0?'':' neg')+'">'+(l.rend>=0?'+':'−')+BRL(Math.abs(meu(l.rend)))+
       '<span class="ac-q">'+PCT(l.pct*100,2)+'</span></span></div>').join('')
     +'<div class="ac-r ac-tot"><span class="ac-m">total'+
-      (a.linhas.length>12?' <span class="ac-q">'+a.linhas.length+' meses</span>':'')+'</span>'+
+      '<span class="ac-q">'+a.linhas.length+' '+(a.linhas.length>1?'meses':'mês')+'</span></span>'+
      '<span class="ac-n">'+BRL(meu(t.nominal))+'</span>'+
      '<span class="ac-l">'+BRL(meu(t.lci))+'</span>'+
      '<span class="ac-d'+(t.rend>=0?'':' neg')+'">'+(t.rend>=0?'+':'−')+BRL(Math.abs(meu(t.rend)))+'</span></div>';
