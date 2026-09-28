@@ -1763,7 +1763,12 @@ function casarParcela(lido){const r=casarParcelaNivel(lido);return r?r.it:null;}
 // A regua de comparacao e LCI/LCA isenta a 90% do CDI: o teto realista de quem
 // aplica sem pagar IR. Por isso 'trib' e constante e nao um controle na tela —
 // os 90% JA sao liquidos. Se um dia a regua virar CDB, volte a expor a escolha.
-function sv(){return{incc:+$('incc').value/100,cdi:+$('cdi').value/100,pctcdi:+$('pctcdi').value/100,trib:'isento'};}
+// O coracao do calculo le tres sliders. Slider limita na interface, mas o valor
+// pode chegar torto por restauracao de premissa salva ou por alteracao direta —
+// e daqui saem TODAS as projecoes. Faixa explicita, como nos demais campos.
+function sv(){return{incc:campoNum('incc',0,50,6.7)/100,
+                     cdi:campoNum('cdi',0,50,14)/100,
+                     pctcdi:campoNum('pctcdi',0,300,90)/100,trib:'isento'};}
 function getEntrega(){const sel=$('entrega').value;const d=sel==='custom'?($('entregaData').value||'2031-12-01'):sel;return new Date(d+'T00:00:00');}
 // A tabela regressiva do IR conta DIAS, nao anos: 15% acima de 720 dias
 // (1,9726 ano), 17,5% de 361 a 720, 20% de 181 a 360, 22,5% ate 180.
@@ -2384,7 +2389,9 @@ function analisar(c,vendaOverride,entregaOverride){
   const s=c.s, ENT=entregaOverride||getEntrega(), anosE=Math.max(0.01,yearsBetween(T0,ENT));
   const taxa=s.cdi*s.pctcdi, isento=s.trib!=='trib';
   const HOJE=new Date();
-  const ipca=(parseFloat($('ipca').value)||0)/100, inccA=Math.pow(1+c.imP,12)-1;
+  // sem faixa, um IPCA negativo absurdo fazia Math.pow(base negativa, expoente
+  // fracionario) = NaN, e o card do IPCA imprimia NaN
+  const ipca=campoNum('ipca',-20,50,4.5)/100, inccA=Math.pow(1+c.imP,12)-1;
   let totalNom=0,vfRF=0,vfCDIliq=0,nominalParc=0,pagoOuProj=0,aportesTot=0,corrIPCA=0,corrINCC=0,corrCDI=0,realizado=0,projetado=0;const flows=[];
   // corrige cada desembolso: índice REAL (BCB) da data até hoje + PROJEÇÃO (slider) de hoje até a entrega.
   // renda fixa (vfRF)=CDI×%CDI líq. de IR · CDI=100% bruto · IPCA/INCC=correção pura. INCC real=boletos (taxa observada).
@@ -2421,7 +2428,7 @@ function analisar(c,vendaOverride,entregaOverride){
   const _m2=mercadoParams().m2;
   const valorHoje=_m2>0?_m2*AREA:null, anosHoje=Math.max(0.08,yearsBetween(HOJE,ENT));
   // --- cenário de saída (revenda) ---
-  const venda=(vendaOverride!=null)?vendaOverride:(parseFloat($('aval').value)||0);
+  const venda=(vendaOverride!=null)?vendaOverride:campoNum('aval',0,100000000,0);
   // corretagem em [0,90]: em 100 o preco de venda dividia por zero
   const corret=campoNum('corret',0,30,0)/100;
   const custoVenda=campoNum('custoVenda',0,100000000,0);
@@ -2464,18 +2471,18 @@ function analisarRenda(a){
   const fixo=campoNum('custoFixo',0,10000000,0);
   const irA=campoNum('irAlug',0,100,0)/100;
   const H=Math.round(campoNum('horizonte',1,50,5));
-  const val=(parseFloat($('valoriz').value)||0)/100;
+  const val=campoNum('valoriz',-50,100,6)/100;
   if(!alug||!Pent)return {ok:false,H};
   const liqAno=k=>{const b=alug*12*Math.pow(1+reaj,k-1);const e=b*(1-vac);const n=e*(1-opex)-fixo;return n*(1-irA);};
   const brutoAno1=alug*12, efet1=brutoAno1*(1-vac), noi1=efet1*(1-opex)-fixo, liq1=noi1*(1-irA);
   const yieldB=brutoAno1/Pent, cap=noi1/Pent, yieldL=liq1/Pent;
-  const totalManterPre=a.totalNom+(ENTRADA-a.custoEscrit), coc=liq1/totalManterPre;
-  let acc=0,pay=null;for(let k=1;k<=50;k++){acc+=liqAno(k);if(acc>=totalManterPre){pay=k;break;}}
   // Para alugar voce escritura o imovel, entao ITBI+registro sao custo REAL deste
   // caminho — mesmo quando o cenario de venda acima assume cessao de direitos.
   // Ja a taxa de cessao nao existe aqui: na saida terminal voce ja escriturou.
   const deltaEscrit=ENTRADA-a.custoEscrit;            // 0 se ja escriturou, ENTRADA se a venda era por cessao
-  const totalManter=a.totalNom+deltaEscrit;
+  const totalManter=a.totalNom+deltaEscrit;           // uma conta so, usada em tudo abaixo
+  const coc=liq1/totalManter;
+  let acc=0,pay=null;for(let k=1;k<=50;k++){acc+=liqAno(k);if(acc>=totalManter){pay=k;break;}}
   const flows=a.flows.slice(); let somaL=0;
   if(deltaEscrit>0)flows.push({t:a.anosE,cf:-deltaEscrit});
   for(let k=1;k<=H;k++){const l=liqAno(k);somaL+=l;flows.push({t:a.anosE+k,cf:l});}
@@ -3096,7 +3103,7 @@ function renderRenda(c){
 function renderDecisao(c){
   const a=analisar(c), r=analisarRenda(a);
   const tirRF=irr(a.flows.concat([{t:a.anosE,cf:a.vfRF}]));
-  const ifix=(parseFloat($('ifix').value)||0)/100;
+  const ifix=campoNum('ifix',0,50,11)/100;
   const selic=c.s.cdi, poup=selic>0.085?0.0617:0.7*selic;
   const fmt=v=>v!=null?PCT(v*100,1)+' a.a.':'—';
   const vender=a.venda?a.tir:null, manter=r.ok?r.tir:null;
