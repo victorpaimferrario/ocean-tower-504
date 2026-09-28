@@ -2543,8 +2543,16 @@ function acompanhaMensal(){
     else if(capOk&&cap<new Date(fy,fm,0,23,59,59))parcial.push(k);
     if(++fm>12){fm=1;fy++;}
   }
+  // Ate onde o rendimento foi de fato apurado: o ultimo mes FECHADO, nao hoje.
+  // O card dizia "vale hoje" e "atualizado em 27/09" enquanto o rendimento
+  // parava em 31/08 — tecnicamente conservador, mas a tela prometia uma data
+  // que o numero nao entregava, e era a maior fonte de desconfianca no card.
+  const ultFech=new Date(hoje.getFullYear(),hoje.getMonth(),0);
+  const MES2=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   return {linhas, total:{nominal:tNom,lci:tLci,cdi:tCdi,rend:tLci-tNom,
           pct:tNom>0?(tLci-tNom)/tNom:0}, hoje, falta, parcial,
+          apurado:MES2[ultFech.getMonth()]+'/'+String(ultFech.getFullYear()).slice(2),
+          mesCorrente:MES2[hoje.getMonth()]+'/'+String(hoje.getFullYear()).slice(2),
           atualizado:SERIES.atualizado_em||null};
 }
 function renderAcompanha(){
@@ -2552,34 +2560,52 @@ function renderAcompanha(){
   const a=acompanhaMensal();
   if(!a){box.style.display='none';return;}
   box.style.display='';
-  const t=a.total, meu=x=>x*PV;
-  $('acTit').textContent='atualizado em '+a.hoje.toLocaleDateString('pt-BR');
-  $('acPago').textContent=BRL(meu(t.nominal));
+  // A metade de um valor com centavos IMPARES nao e exata: metade de
+  // R$ 23.750,53 e R$ 11.875,265. Arredondando so na hora de imprimir, cada uma
+  // das tres linhas de sinal subia para R$ 11.875,27 e as tres somavam 1 centavo
+  // a mais que o total, que vinha do valor cheio dividido por dois. Linha que
+  // nao soma o total, num card de dinheiro, derruba a confianca no indicador
+  // inteiro. Aqui a METADE ARREDONDADA passa a ser a unidade de conta: arredonda
+  // uma vez, por linha, e o total e a soma dessas linhas — fecha por construcao.
+  const meu=x=>Math.round((x*PV)*100)/100;
+  const L=a.linhas.map(l=>{
+    const nom=meu(l.nominal), lci=meu(l.lci);
+    return {label:l.label, refs:l.refs, nom, lci,
+            rend:Math.round((lci-nom)*100)/100, pct:nom>0?(lci-nom)/nom:0};
+  });
+  const t={nominal:L.reduce((x,l)=>x+l.nom,0), lci:L.reduce((x,l)=>x+l.lci,0),
+           cdi:meu(a.total.cdi)};
+  t.nominal=Math.round(t.nominal*100)/100; t.lci=Math.round(t.lci*100)/100;
+  t.rend=Math.round((t.lci-t.nominal)*100)/100;
+  t.pct=t.nominal>0?t.rend/t.nominal:0;
+  $('acTit').innerHTML='rendimento apurado até <b>'+esc(a.apurado)+'</b>'+
+    ' · '+esc(a.mesCorrente)+' entra quando o mês fechar';
+  $('acPago').textContent=BRL(t.nominal);
   const np=a.linhas.reduce((n,l)=>n+l.n,0);
   $('acPagoS').textContent=np+' parcela'+(np>1?'s':'')+' paga'+(np>1?'s':'')+
-    ' · unidade '+BRL(t.nominal);
-  $('acLci').textContent=BRL(meu(t.lci));
-  $('acLciS').textContent='se estivesse numa LCI a '+Math.round(sv().pctcdi*100)+
-    '% do CDI · a 100% seria '+BRL(meu(t.cdi));
-  $('acDif').textContent=(t.rend>=0?'+':'−')+BRL(Math.abs(meu(t.rend)));
+    ' · unidade '+BRL(a.total.nominal);
+  $('acLci').textContent=BRL(t.lci);
+  $('acLciS').textContent='numa LCI a '+Math.round(sv().pctcdi*100)+
+    '% do CDI, com o índice fechado até '+a.apurado+' · a 100% seria '+BRL(t.cdi);
+  $('acDif').textContent=(t.rend>=0?'+':'−')+BRL(Math.abs(t.rend));
   $('acDif').className='ac-v '+(t.rend>=0?'up':'dn');
   $('acDifS').textContent=PCT(t.pct*100,2)+' sobre tudo o que você já pôs';
   // Ordem crescente: a leitura e uma linha do tempo, e comeca pelo comeco.
   // Sem janela — cortar os mais antigos esconderia justamente os aportes que
   // mais renderam, que sao os que dao sentido a coluna.
-  const ult=a.linhas;
-  $('acLista').innerHTML=ult.map(l=>
+  $('acLista').innerHTML=L.map(l=>
     '<div class="ac-r"><span class="ac-m">'+esc(l.label)+
-      '<span class="ac-q">'+esc(l.refs.length>1?l.refs.length+' parcelas':l.refs[0])+'</span></span>'+
-    '<span class="ac-n">'+BRL(meu(l.nominal))+'</span>'+
-    '<span class="ac-l">'+BRL(meu(l.lci))+'</span>'+
-    '<span class="ac-d'+(l.rend>=0?'':' neg')+'">'+(l.rend>=0?'+':'−')+BRL(Math.abs(meu(l.rend)))+
+      '<span class="ac-q">'+esc(l.refs.length>1?l.refs.length+' parcelas':l.refs[0])+
+      (l.label===a.mesCorrente?' · mês em curso':'')+'</span></span>'+
+    '<span class="ac-n">'+BRL(l.nom)+'</span>'+
+    '<span class="ac-l">'+BRL(l.lci)+'</span>'+
+    '<span class="ac-d'+(l.rend>=0?'':' neg')+'">'+(l.rend>=0?'+':'−')+BRL(Math.abs(l.rend))+
       '<span class="ac-q">'+PCT(l.pct*100,2)+'</span></span></div>').join('')
     +'<div class="ac-r ac-tot"><span class="ac-m">total'+
-      '<span class="ac-q">'+a.linhas.length+' '+(a.linhas.length>1?'meses':'mês')+'</span></span>'+
-     '<span class="ac-n">'+BRL(meu(t.nominal))+'</span>'+
-     '<span class="ac-l">'+BRL(meu(t.lci))+'</span>'+
-     '<span class="ac-d'+(t.rend>=0?'':' neg')+'">'+(t.rend>=0?'+':'−')+BRL(Math.abs(meu(t.rend)))+'</span></div>';
+      '<span class="ac-q">'+L.length+' '+(L.length>1?'meses':'mês')+'</span></span>'+
+     '<span class="ac-n">'+BRL(t.nominal)+'</span>'+
+     '<span class="ac-l">'+BRL(t.lci)+'</span>'+
+     '<span class="ac-d'+(t.rend>=0?'':' neg')+'">'+(t.rend>=0?'+':'−')+BRL(Math.abs(t.rend))+'</span></div>';
   // aviso quando a serie do BCB nao cobre todo o periodo
   const av=$('acAviso');
   const MESN=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -2600,10 +2626,13 @@ function renderAcompanha(){
     ? 'CDI do Banco Central · série atualizada em '+dt.toLocaleDateString('pt-BR')
     : 'CDI do Banco Central';
   $('acNota').innerHTML='Cada linha é o que <b>saiu do seu bolso naquele mês</b>, '+
-    'corrigido até <b>hoje</b> pelo CDI real do Banco Central — por isso os aportes '+
-    'mais antigos rendem mais. Só parcelas pagas; sem projeção e sem premissa. '+
-    'O mês em curso ainda não rende: o Banco Central só fecha o índice depois que '+
-    'o mês acaba. Valores = <b>sua metade</b>.';
+    'corrigido pelo CDI real do Banco Central — por isso os aportes mais antigos '+
+    'rendem mais. Só parcelas pagas; sem projeção e sem premissa. '+
+    '<b>O rendimento para no último mês fechado ('+esc(a.apurado)+')</b>: o Banco '+
+    'Central só publica o índice depois que o mês acaba, então o que rendeu em '+
+    esc(a.mesCorrente)+' ainda não aparece e entra de uma vez na virada — é por '+
+    'isso que um aporte recente mostra quase nada. Valores = <b>sua metade</b>; '+
+    'como metade de centavo não existe, cada linha arredonda e o total é a soma delas.';
 }
 // "E SE EU TIVESSE APLICADO?"
 // Responde a pergunta na forma em que ela foi feita: cada desembolso corrigido
