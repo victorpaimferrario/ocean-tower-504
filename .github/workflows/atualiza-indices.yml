@@ -2,30 +2,26 @@ name: Atualiza indices (IPCA/CDI)
 
 # Puxa as series mensais REAIS do Banco Central (SGS) e grava em indices.json.
 # O painel usa esses valores para corrigir cada desembolso pelo indice REALIZADO
-# de cada mes (passado) e pela projecao (slider) so no que falta ate a entrega.
+# de cada mes. E a fonte do indicador "Meu dinheiro, mes a mes".
 #   IPCA  -> serie 433  (variacao mensal, % a.m.)
 #   CDI   -> serie 4391 (CDI acumulado no mes, % a.m.)
-# Totalmente automatico. Roda todo dia 12 e sob demanda.
 #
-# POR QUE DIA 12: o IBGE publica o IPCA do mes anterior por volta do dia 10.
-# Ate 09/2026 este robo rodava dia 5 — antes da publicacao — e por isso o mes
-# anterior NUNCA entrava na serie: o painel operava sempre com o IPCA dois meses
-# atrasado. Pior que atraso, virava erro de conta: fatorReal() pula mes ausente
-# (fator 1) e a projecao do slider so comeca em HOJE, entao o mes faltante ficava
-# sem correcao nenhuma — subestimando o desembolso corrigido e o piso de venda
-# IPCA. Dia 12 da ~2 dias de folga sobre a publicacao do IBGE.
+# POR QUE DIA 1 E DIA 12: dia 1 fecha o CDI do mes que acabou (a serie 4391 e
+# "acumulado no mes" e vem PARCIAL enquanto o mes corre). Dia 12 traz o IPCA,
+# que o IBGE publica por volta do dia 10.
+#
+# POR QUE RETRY: em 01/10/2026 este robo FALHOU (exit 1) e ninguem soube. A API
+# do BCB cai com frequencia, e o script nao tinha nenhuma tolerancia: uma falha
+# de rede derrubava a atualizacao do mes inteiro, e a proxima tentativa so viria
+# dia 12. O painel ficou 5 dias exibindo setembro com o valor PARCIAL de 0,72%.
+# Agora: 4 tentativas por serie com espera crescente, e — mais importante — o
+# arquivo bom NUNCA e substituido por um pior. Se o BCB nao responder, o robo
+# falha SEM escrever, preservando o indices.json que ja estava certo.
 
-#
-# POR QUE TAMBEM DIA 1: a serie 4391 e "CDI acumulado NO MES", entao o mes
-# corrente vem PARCIAL (em 23/09 gravava 0,72% de um mes que fecharia ~1,05%).
-# Enquanto o mes nao virou isso e inofensivo — fatorReal() nao usa o mes corrente.
-# Virado o mes, o valor parcial passa a ser lido como mes FECHADO e subestimava o
-# CDI daquele mes ate a rodada do dia 12. A rodada do dia 1 fecha o mes anterior
-# logo; a do dia 12 continua sendo a que traz o IPCA (IBGE publica ~dia 10).
 on:
   schedule:
-    - cron: '30 9 1 * *'      # dia 1, fecha o CDI do mes anterior
-    - cron: '30 9 12 * *'     # dia 12, ~09:30 UTC (~06:30 Brasilia) — traz o IPCA
+    - cron: '28 9 1 * *'      # dia 1, fecha o CDI do mes anterior
+    - cron: '28 9 12 * *'     # dia 12, traz o IPCA
   workflow_dispatch:
 
 permissions:
@@ -40,29 +36,60 @@ jobs:
       - name: Buscar IPCA e CDI no BCB e gravar indices.json
         run: |
           python3 - <<'PY'
-          import json, urllib.request, datetime
+          import json, urllib.request, urllib.error, datetime, time, os, sys
 
-          def sgs(cod):
+          def sgs(cod, tentativas=4):
               url=("https://api.bcb.gov.br/dados/serie/bcdata.sgs.%d/dados"
                    "?formato=json&dataInicial=01/06/2026" % cod)
-              req=urllib.request.Request(url, headers={"User-Agent":"ocean504-bot"})
-              with urllib.request.urlopen(req, timeout=40) as r:
-                  data=json.load(r)
-              out={}
-              for it in data:
-                  dd,mm,yy=it["data"].split("/")          # dd/mm/yyyy
-                  out["%s-%s"%(yy,mm)]=float(str(it["valor"]).replace(",","."))
-              return out
+              erro=None
+              for t in range(tentativas):
+                  try:
+                      req=urllib.request.Request(url, headers={"User-Agent":"ocean504-bot"})
+                      with urllib.request.urlopen(req, timeout=45) as r:
+                          data=json.load(r)
+                      out={}
+                      for it in data:
+                          dd,mm,yy=it["data"].split("/")
+                          out["%s-%s"%(yy,mm)]=float(str(it["valor"]).replace(",","."))
+                      if not out:
+                          raise ValueError("serie %d voltou vazia" % cod)
+                      return out
+                  except Exception as e:
+                      erro=e
+                      espera=5*(2**t)          # 5s, 10s, 20s, 40s
+                      print("serie %d, tentativa %d/%d falhou (%s) — espera %ds"
+                            % (cod, t+1, tentativas, e, espera), flush=True)
+                      if t < tentativas-1: time.sleep(espera)
+              raise RuntimeError("serie %d falhou em %d tentativas: %s" % (cod, tentativas, erro))
+
+          # o que ja esta publicado — serve de piso de qualidade
+          antigo={"ipca":{}, "cdi":{}}
+          if os.path.exists("indices.json"):
+              try: antigo=json.load(open("indices.json"))
+              except Exception as e: print("indices.json atual ilegivel (%s)" % e)
+
+          ipca=sgs(433)
+          cdi =sgs(4391)
+
+          # NUNCA substituir o arquivo bom por um pior: se o BCB devolver menos
+          # meses do que ja temos, e porque algo esta errado do lado deles.
+          for nome, novo in (("ipca",ipca), ("cdi",cdi)):
+              velho=antigo.get(nome) or {}
+              if len(novo) < len(velho):
+                  print("::error::%s voltou com %d meses, menos que os %d ja gravados — abortando sem escrever"
+                        % (nome, len(novo), len(velho)))
+                  sys.exit(1)
 
           res={
-            "atualizado_em": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "atualizado_em": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "fonte": "Banco Central (SGS): IPCA=433, CDI acumulado no mes=4391 (% a.m.)",
-            "ipca": sgs(433),
-            "cdi":  sgs(4391),
+            "ipca": ipca,
+            "cdi":  cdi,
           }
           with open("indices.json","w",encoding="utf-8") as f:
               json.dump(res, f, ensure_ascii=False, indent=2)
-          print("IPCA meses:", len(res["ipca"]), "| CDI meses:", len(res["cdi"]))
+          print("IPCA meses:", len(ipca), "| CDI meses:", len(cdi))
+          print("ultimo CDI:", sorted(cdi)[-1], "=", cdi[sorted(cdi)[-1]])
           PY
 
       - name: Commitar se mudou
