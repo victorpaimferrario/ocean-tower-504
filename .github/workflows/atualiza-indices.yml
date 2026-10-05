@@ -6,9 +6,10 @@ name: Atualiza indices (IPCA/CDI)
 #   IPCA  -> serie 433  (variacao mensal, % a.m.)
 #   CDI   -> serie 4391 (CDI acumulado no mes, % a.m.)
 #
-# POR QUE DIA 1 E DIA 12: dia 1 fecha o CDI do mes que acabou (a serie 4391 e
-# "acumulado no mes" e vem PARCIAL enquanto o mes corre). Dia 12 traz o IPCA,
-# que o IBGE publica por volta do dia 10.
+# O QUE MUDA EM CADA DIA: no dia 1 fecha o CDI do mes que acabou (a serie 4391 e
+# "acumulado no mes" e vem PARCIAL enquanto o mes corre); por volta do dia 10 o
+# IBGE publica o IPCA. Nos demais dias o robo roda, nao encontra novidade e nao
+# comita — e barato e garante que nenhuma falha isolada fique dias no ar.
 #
 # POR QUE RETRY: em 01/10/2026 este robo FALHOU (exit 1) e ninguem soube. A API
 # do BCB cai com frequencia, e o script nao tinha nenhuma tolerancia: uma falha
@@ -18,10 +19,14 @@ name: Atualiza indices (IPCA/CDI)
 # arquivo bom NUNCA e substituido por um pior. Se o BCB nao responder, o robo
 # falha SEM escrever, preservando o indices.json que ja estava certo.
 
+# POR QUE DIARIO: rodar so nos dias 1 e 12 significa que uma falha custa ate
+# onze dias de dado errado no ar — foi o que aconteceu em 01/10. Rodando todo
+# dia, qualquer falha se resolve sozinha na manha seguinte. O custo e nenhum: o
+# passo de commit so grava quando o conteudo muda, entao nos dias em que o BCB
+# nao publicou nada o robo roda, compara e nao faz commit algum.
 on:
   schedule:
-    - cron: '28 9 1 * *'      # dia 1, fecha o CDI do mes anterior
-    - cron: '28 9 12 * *'     # dia 12, traz o IPCA
+    - cron: '28 9 * * *'      # todo dia ~09:28 UTC (~06:28 de Brasilia)
   workflow_dispatch:
 
 permissions:
