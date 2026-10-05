@@ -2,53 +2,85 @@ name: Keep-alive Supabase
 
 # Mantem o projeto Supabase (plano gratis) ativo, evitando a pausa por inatividade.
 #
-# HISTORICO: ate 22/09/2026 este robo fazia apenas um GET. Ele rodou todo dia e
-# respondeu 200 todo dia — e o projeto foi pausado assim mesmo (e-mail da Supabase
-# em 22/09). Ou seja: LEITURA ANONIMA NAO CONTA como atividade para eles.
-# Agora o ping faz uma ESCRITA de verdade (UPDATE de um timestamp) numa tabela
-# isolada, `ocean504_heartbeat`, criada so para isso: uma unica linha, sem dado
-# sensivel, onde o anonimo so pode dar UPDATE (nao pode inserir nem apagar).
+# HISTORICO DE DUAS TENTATIVAS QUE FALHARAM:
+#  1) Ate 22/09/2026 o robo fazia um GET por dia. Respondeu 200 todo dia e o
+#     projeto foi pausado assim mesmo.
+#  2) De 22/09 a 05/10 passou a fazer uma ESCRITA, 2x ao dia. Rodou 22 vezes
+#     seguidas sem uma falha, o heartbeat chegou ao banco — e em 05/10 veio outro
+#     aviso de pausa.
 #
-# Totalmente automatico — nao exige nenhuma acao.
+# A documentacao da Supabase explica o porque: o criterio nao e "houve alguma
+# requisicao", e sim VOLUME de consultas ao banco — "too few user queries" e
+# "a few user requests to the database each day". Duas requisicoes por dia e
+# pouco. Agora sao 4 execucoes diarias e cada uma faz ~10 consultas reais nas
+# tabelas do painel, o que da ~40 por dia, bem acima do "a few" da documentacao.
+#
+# Minutos quebrados de proposito: cron em hora cheia disputa fila com o mundo
+# inteiro no GitHub Actions e atrasa (os runs de :23 chegaram a sair 00:01).
 
 on:
   schedule:
-    - cron: '23 9 * * *'      # ~09:23 UTC (~06:23 de Brasilia)
-    - cron: '23 21 * * *'     # ~21:23 UTC (~18:23 de Brasilia)
-  workflow_dispatch:           # botao "Run workflow" para rodar na hora
+    - cron: '17 2 * * *'
+    - cron: '43 8 * * *'
+    - cron: '11 14 * * *'
+    - cron: '37 20 * * *'
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Escrever heartbeat no Supabase (escrita conta como atividade)
+      - name: Consultar e escrever no Supabase (volume conta como atividade)
         run: |
-          set -euo pipefail
+          set -uo pipefail
           API="https://aipgtnvflezqnhzbpxam.supabase.co/rest/v1"
           KEY="sb_publishable_t3S6My3JAie5UPwfc5SvNg_lH78ZbLf"
+          H=(-H "apikey: $KEY" -H "Accept: application/json")
+          falhas=0; ok=0
+
+          consulta () {   # $1 = rotulo, $2 = caminho
+            local code
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 25 "${H[@]}" "$API/$2" || echo 000)
+            if [ "$code" = "200" ]; then ok=$((ok+1)); else falhas=$((falhas+1)); fi
+            echo "  $1 -> $code"
+          }
+
+          echo "Consultas de leitura (geram user queries no banco):"
+          consulta "parcelas (contagem)"    "ocean504_parcelas?select=id&limit=1"
+          consulta "parcelas (pagas)"       "ocean504_parcelas?select=id,valor_pago&valor_pago=not.is.null"
+          consulta "parcelas (a vencer)"    "ocean504_parcelas?select=id,vencimento&valor_pago=is.null&order=vencimento.asc&limit=5"
+          consulta "parcelas (com boleto)"  "ocean504_parcelas?select=id,valor_boleto&valor_boleto=not.is.null"
+          consulta "parcelas (serie toda)"  "ocean504_parcelas?select=id,ref,vencimento,valor_base&order=id.asc"
+          consulta "config (premissas)"     "ocean504_config?select=chave,updated_at"
+          consulta "heartbeat (leitura)"    "ocean504_heartbeat?select=id,ts"
+          consulta "parcelas (semestrais)"  "ocean504_parcelas?select=id&tipo=eq.semestral"
+          consulta "parcelas (mensais)"     "ocean504_parcelas?select=id&tipo=eq.mensal"
+
+          echo "Escrita (o sinal mais forte de atividade):"
           AGORA="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-          CODE=$(curl -sS -o resposta.json -w "%{http_code}" \
+          CODE=$(curl -sS -o resposta.json -w "%{http_code}" --max-time 25 \
             -X PATCH "$API/ocean504_heartbeat?id=eq.1" \
-            -H "apikey: $KEY" \
-            -H "Content-Type: application/json" \
+            -H "apikey: $KEY" -H "Content-Type: application/json" \
             -H "Prefer: return=representation" \
-            -d "{\"ts\":\"$AGORA\",\"origem\":\"github-actions\"}")
+            -d "{\"ts\":\"$AGORA\",\"origem\":\"github-actions\"}" || echo 000)
+          echo "  heartbeat (escrita) -> $CODE"
+          cat resposta.json 2>/dev/null || true; echo
 
-          echo "Supabase respondeu: $CODE"
-          cat resposta.json || true
-          echo
+          echo "Resumo: $ok consultas OK, $falhas falharam, escrita $CODE"
 
           if [ "$CODE" != "200" ]; then
-            echo "::error::Heartbeat falhou (esperado 200, recebeu $CODE). \
+            echo "::error::Escrita falhou (esperado 200, recebeu $CODE). \
           Se for 000/503/521 o projeto provavelmente esta PAUSADO — religue em \
           https://supabase.com/dashboard/project/aipgtnvflezqnhzbpxam"
             exit 1
           fi
-
-          # confere que o timestamp realmente mudou (200 sem gravar seria pior que erro)
           if ! grep -q "$(date -u +%Y-%m-%d)" resposta.json; then
             echo "::error::Respondeu 200 mas o timestamp nao foi gravado."
             exit 1
           fi
-          echo "Heartbeat gravado — projeto Supabase ativo."
+          # leitura falhando com escrita OK nao e motivo para quebrar o robo,
+          # mas precisa aparecer: e sinal de politica de acesso mexida
+          if [ "$falhas" -gt 0 ]; then
+            echo "::warning::$falhas consulta(s) de leitura falharam — confira as policies."
+          fi
+          echo "Projeto ativo: $ok leituras + 1 escrita nesta execucao."
