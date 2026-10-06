@@ -39,68 +39,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Buscar IPCA e CDI no BCB e gravar indices.json
-        run: |
-          python3 - <<'PY'
-          import json, urllib.request, urllib.error, datetime, time, os, sys
-
-          def sgs(cod, tentativas=4):
-              url=("https://api.bcb.gov.br/dados/serie/bcdata.sgs.%d/dados"
-                   "?formato=json&dataInicial=01/06/2026" % cod)
-              erro=None
-              for t in range(tentativas):
-                  try:
-                      req=urllib.request.Request(url, headers={"User-Agent":"ocean504-bot"})
-                      with urllib.request.urlopen(req, timeout=45) as r:
-                          data=json.load(r)
-                      out={}
-                      for it in data:
-                          dd,mm,yy=it["data"].split("/")
-                          out["%s-%s"%(yy,mm)]=float(str(it["valor"]).replace(",","."))
-                      if not out:
-                          raise ValueError("serie %d voltou vazia" % cod)
-                      return out
-                  except Exception as e:
-                      erro=e
-                      espera=5*(2**t)          # 5s, 10s, 20s, 40s
-                      print("serie %d, tentativa %d/%d falhou (%s) — espera %ds"
-                            % (cod, t+1, tentativas, e, espera), flush=True)
-                      if t < tentativas-1: time.sleep(espera)
-              raise RuntimeError("serie %d falhou em %d tentativas: %s" % (cod, tentativas, erro))
-
-          # o que ja esta publicado — serve de piso de qualidade
-          antigo={"ipca":{}, "cdi":{}}
-          if os.path.exists("indices.json"):
-              try: antigo=json.load(open("indices.json"))
-              except Exception as e: print("indices.json atual ilegivel (%s)" % e)
-
-          ipca=sgs(433)
-          cdi =sgs(4391)
-
-          # NUNCA substituir o arquivo bom por um pior: se o BCB devolver menos
-          # meses do que ja temos, e porque algo esta errado do lado deles.
-          for nome, novo in (("ipca",ipca), ("cdi",cdi)):
-              velho=antigo.get(nome) or {}
-              if len(novo) < len(velho):
-                  print("::error::%s voltou com %d meses, menos que os %d ja gravados — abortando sem escrever"
-                        % (nome, len(novo), len(velho)))
-                  sys.exit(1)
-
-          res={
-            "atualizado_em": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "fonte": "Banco Central (SGS): IPCA=433, CDI acumulado no mes=4391 (% a.m.)",
-            "ipca": ipca,
-            "cdi":  cdi,
-          }
-          with open("indices.json","w",encoding="utf-8") as f:
-              json.dump(res, f, ensure_ascii=False, indent=2)
-          print("IPCA meses:", len(ipca), "| CDI meses:", len(cdi))
-          print("ultimo CDI:", sorted(cdi)[-1], "=", cdi[sorted(cdi)[-1]])
-          PY
+        run: python3 scripts/atualiza_indices.py
 
       - name: Commitar se mudou
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add indices.json
-          git diff --staged --quiet || git commit -m "Atualiza indices IPCA/CDI - $(date -u +%Y-%m-%d)"
-          git push
+          git diff --staged --quiet && { echo "nada mudou"; exit 0; }
+          git commit -m "Atualiza indices IPCA/CDI - $(date -u +%Y-%m-%d)"
+          # dois workflows podem commitar este arquivo; rebase antes de empurrar
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            echo "push falhou, tentativa $i"; sleep $((i*5))
+          done
+          exit 1

@@ -26,10 +26,14 @@ on:
     - cron: '37 20 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Consultar e escrever no Supabase (volume conta como atividade)
         run: |
           set -uo pipefail
@@ -84,3 +88,28 @@ jobs:
             echo "::warning::$falhas consulta(s) de leitura falharam — confira as policies."
           fi
           echo "Projeto ativo: $ok leituras + 1 escrita nesta execucao."
+
+      # ATUALIZAR OS INDICES AQUI TAMBEM, DE PROPOSITO.
+      # Medido neste repositorio: o GitHub atrasa cron de 2 a 7 horas (os crons
+      # de 09:23 e 21:23 saiam entre 14:21 e 16:31, e entre 23:55 e 00:57) e as
+      # vezes pula o ciclo. Para o keepalive isso e tolerevel; para os indices
+      # nao, porque um ciclo perdido deixa o painel um dia inteiro com o indice
+      # do mes anterior em aberto — foi o que aconteceu entre 01/10 e 06/10.
+      # Este robo e o que comprovadamente roda, 4x por dia. Pendurar a
+      # atualizacao aqui da quatro chances diarias em vez de uma.
+      # continue-on-error: o BCB fora do ar NAO pode derrubar o keepalive, que e
+      # o que mantem o banco de pe.
+      - name: Tentar atualizar indices (best effort)
+        continue-on-error: true
+        run: |
+          python3 scripts/atualiza_indices.py || { echo "BCB indisponivel agora"; exit 0; }
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add indices.json
+          git diff --staged --quiet && { echo "indices ja estavam em dia"; exit 0; }
+          git commit -m "Atualiza indices IPCA/CDI - $(date -u +%Y-%m-%d)"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            echo "push falhou, tentativa $i"; sleep $((i*5))
+          done
+          echo "nao consegui empurrar; a proxima execucao tenta de novo"
