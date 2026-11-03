@@ -943,12 +943,20 @@ const num=x=>x==null||x===''?0:(+x||0);
 function genItens(){const a=[];let id=1;const d=(y,m,day)=>`${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const add=(ref,tipo,v,b)=>a.push({id:id++,ref,tipo,vencimento:v,valor_base:b,valor_pago:null,data_pagamento:null,juros:null,multa:null,obs:null});
   [[2026,6],[2026,7],[2026,8]].forEach((x,i)=>add('Sinal '+(i+1),'sinal',d(x[0],x[1],30),23750.53));
-  // mensais vencem dia 25 (conferido contra o banco e contra um boleto real);
-  // sinais no dia 30 e semestrais no dia 1. Este fallback so aparece com o banco
-  // fora do ar, mas precisa espelhar o contrato — com o dia errado a parcela
-  // aparecia como vencida 14 dias antes e o casamento de comprovante por data falhava.
+  // Dia de vencimento: sinais no dia 30; mensais E semestrais no dia 25.
+  // O quadro do item 5.1 do contrato traz "11/09/2026" para a 1a mensal e
+  // "01/11/2026" para a 1a semestral, mas a incorporadora cobra tudo no dia 25
+  // (confirmado contra boletos reais das Mensais 1 e 2 e informado pela AD Haus
+  // em nov/2026 para os baloes). O Anexo I — que a clausula 5.2.4 define como a
+  // fonte oficial das datas — NAO consta do PDF assinado, logo nao ha documento
+  // que resolva a divergencia; pedido formal em aberto.
+  // Com o dia errado a parcela aparecia como vencida antes da hora e o
+  // casamento de comprovante por data falhava.
   let y=2026,m=9;for(let i=0;i<55;i++){add('Mensal '+(i+1),'mensal',d(y,m,25),3454.62);m++;if(m>12){m=1;y++;}}
-  [[2026,11],[2027,5],[2027,11],[2028,5],[2028,11],[2029,5],[2029,11]].forEach((x,i)=>add('Semestral '+(i+1),'semestral',d(x[0],x[1],1),30536.37));
+  // Consequencia: cada semestral cai no MESMO dia de uma mensal (7 meses de
+  // pico, R$ 33.990,99 de base somados). O painel trata como dois registros
+  // distintos; quem concilia documento por data precisa desempatar por valor.
+  [[2026,11],[2027,5],[2027,11],[2028,5],[2028,11],[2029,5],[2029,11]].forEach((x,i)=>add('Semestral '+(i+1),'semestral',d(x[0],x[1],25),30536.37));
   return a;}
 
 let state={itens:[]},charts={},canEdit=false,docs=[],currentEmail=null,parcelaFoco=null;
