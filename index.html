@@ -1807,12 +1807,38 @@ function somaEncargos(){
   });
   return {juros,multa,total:juros+multa,nParc};
 }
+// A taxa mensal sai do FATOR ACUMULADO MAIS RECENTE, nao da media das observacoes.
+//
+// Pela clausula 6.1 todo boleto corrige a base pelo mesmo indice-base (abr/2026,
+// 2o mes antes da assinatura) ate o 2o mes antes do seu vencimento. Logo as
+// observacoes nao sao independentes: sao fatores ANINHADOS, cada um contendo o
+// anterior. A media aritmetica das taxas derivadas dava a cada mes um peso igual
+// a (1/4)*soma de 1/n das observacoes que o contem — com 4 boletos isso pesava
+// mai/jun/jul 24,6% cada, agosto 16,2% e setembro apenas 10,0%: 2,5x mais peso no
+// passado distante que no mes mais recente, exatamente o vies errado para
+// projetar. Media aritmetica: 8,91% a.a.; fator acumulado: 8,31% a.a. — R$ 6.054
+// a mais nas 58 parcelas ainda por corrigir.
+//
+// Pior, nos 7 meses em que um balao vence junto de uma mensal (25/11/2026,
+// 25/05/2027, ...) as duas parcelas tem o MESMO n e o MESMO indice: entravam como
+// duas observacoes, dobrando o peso daquele mes. Nao e um empate a desempatar — e
+// a mesma medida contada duas vezes.
+//
+// O fator acumulado de maior n ja embute toda a correcao do periodo; as
+// observacoes anteriores sao pontos intermediarios da mesma curva, nao medidas
+// novas. Em n igual, pondera-se pela base: o arredondamento ao centavo delimita o
+// fator com precisao proporcional ao valor, e a semestral (base 8,8x maior) fixa
+// o fator com ~9x menos incerteza que a mensal do mesmo mes.
 function inccObs(){
-  const taxas=[];let somaIncc=0,nBoletos=0;
+  const porN=new Map();let somaIncc=0,nBoletos=0,nObs=0;
   const push=(incc,base,n)=>{
     // protege contra lancamento absurdo (ex.: pagar R$ 0,01 -> INCC de -26%/mes)
     if(n>=1&&base>0){const tx=Math.pow(1+incc/base,1/n)-1;
-      if(isFinite(tx)&&tx>-0.02&&tx<0.05){taxas.push(tx);return true;}}
+      if(isFinite(tx)&&tx>-0.02&&tx<0.05){
+        const f=1+incc/base, a=porN.get(n);
+        // media do fator ponderada pela base, entre observacoes do mesmo mes
+        if(a){a.sf+=f*base;a.sb+=base;}else porN.set(n,{sf:f*base,sb:base});
+        nObs++;return true;}}
     return false;
   };
   // Os 3 sinais sao a ENTRADA, paga pelo valor de contrato: nao levam INCC.
@@ -1837,8 +1863,16 @@ function inccObs(){
     if(pago!=null&&Math.abs(incc)<=base*0.6)somaIncc+=incc;
     if(push(incc,base,n)&&pago==null)nBoletos++;
   });
-  const tm=taxas.length?taxas.reduce((a,b)=>a+b,0)/taxas.length:null;
-  return {mensal:tm,anual:tm!=null?Math.pow(1+tm,12)-1:null,nObs:taxas.length,somaIncc,nBoletos};
+  // Maior n = observacao mais recente = fator que acumula o periodo mais longo.
+  // Se a media ponderada daquele mes cair fora da faixa de sanidade (duas
+  // observacoes do mesmo mes em forte desacordo, sinal de lancamento errado),
+  // recua para o mes anterior em vez de devolver null e perder a medicao inteira.
+  let tm=null,nUsado=null;
+  const ns=Array.from(porN.keys()).sort((a,b)=>b-a);
+  for(const n of ns){const a=porN.get(n);
+    const tx=Math.pow(a.sf/a.sb,1/n)-1;
+    if(isFinite(tx)&&tx>-0.02&&tx<0.05){tm=tx;nUsado=n;break;}}
+  return {mensal:tm,anual:tm!=null?Math.pow(1+tm,12)-1:null,nObs,somaIncc,nBoletos,nMeses:nUsado};
 }
 function taxaProjMensal(){const s=sv(),o=inccObs();
   if($('useObs').checked&&o.mensal!=null)return o.mensal;
@@ -2001,8 +2035,14 @@ function render(){
     const partes=[];
     if(np>0)partes.push(np+' pagamento'+(np>1?'s':''));
     if(nb>0)partes.push(nb+' boleto'+(nb>1?'s':'')+' em dia');
-    $('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> (média de '+
-      partes.join(' + ')+')'+($('useObs').checked?' — em uso na projeção':' — slider em uso');}
+    // Nao e "media das observacoes": e a taxa mensal equivalente do fator
+    // acumulado mais recente (clausula 6.1), que ja embute todo o periodo. Dizer
+    // "media" aqui descrevia o metodo antigo e enganava sobre o que o numero e.
+    const nm=c.obs.nMeses;
+    $('obsLine').innerHTML='INCC observado: <b>'+PCT(c.obs.anual*100,2)+' a.a.</b> ('+
+      (nm?'correção acumulada de '+nm+' '+(nm>1?'meses':'mês')+', ':'')+
+      'medida em '+partes.join(' + ')+')'+
+      ($('useObs').checked?' — em uso na projeção':' — slider em uso');}
   else{const np=state.itens.filter(r=>r.tipo!=='aporte'&&r.valor_pago!=null).length;
     // já pode haver parcela paga sem taxa mensurável: a 1ª vence no mês-base (n=0)
     $('obsLine').innerHTML=np?'INCC observado: <b>—</b> ('+np+' parcela'+(np>1?'s':'')+' paga'+(np>1?'s':'')+
