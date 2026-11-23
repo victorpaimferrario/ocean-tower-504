@@ -532,7 +532,7 @@ footer b{color:var(--ink)}
     <div class="kpi"><div class="k-label">Falta pagar</div><div class="k-val" id="kFalta">—</div><div class="k-sub" id="kFaltaSub">parcelas restantes</div></div>
     <div class="kpi"><div class="k-label">INCC pago</div><div class="k-val" id="kIncc">—</div><div class="k-sub" id="kInccSub">já embutido no que pagou</div></div>
     <div class="kpi"><div class="k-label">Encargos pagos</div><div class="k-val" id="kEnc">—</div><div class="k-sub" id="kEncSub">juros e multa por atraso</div></div>
-    <div class="kpi accent"><div class="k-label">Custo total projetado</div><div class="k-val" id="kAllin">—</div><div class="k-sub">parcelas + INCC + ITBI</div></div>
+    <div class="kpi accent"><div class="k-label">Custo total projetado</div><div class="k-val" id="kAllin">—</div><div class="k-sub" id="kAllinSub">parcelas + INCC + ITBI</div></div>
     <div class="kpi"><div class="k-label">Preço do m²</div><div class="k-val" id="kM2">—</div><div class="k-sub" id="kM2Sub"></div></div>
   </div>
 
@@ -1883,6 +1883,12 @@ function taxaProjMensal(){const s=sv(),o=inccObs();
 // nao foi cobrado.
 function aPagar(r,imP){
   if(r.valor_boleto!=null&&num(r.valor_boleto)>0)return num(r.valor_boleto);
+  // Os 3 sinais sao a ENTRADA: pagos pelo valor de contrato, sem INCC — os tres
+  // comprovantes confirmam (R$ 23.750,53 cada, identico a base). Projetar correcao
+  // sobre eles inflava a curva em R$ 476,84 e fazia o grafico "Realizado x
+  // projetado" mostrar o realizado ABAIXO do projetado nos tres primeiros meses,
+  // sugerindo um atraso de pagamento que nunca existiu.
+  if(r.tipo==='sinal')return num(r.valor_base);
   return num(r.valor_base)*Math.pow(1+imP,nOf(r.vencimento));
 }
 function compute(){
@@ -2055,12 +2061,24 @@ function render(){
   $('kPagoSub').textContent=PCT(c.baseTotal?c.jaPago/c.baseTotal*100:0,1)+' · '+npagas+
     ' de 65 parcelas'+(c.aportes>0?' + aportes':'');
   $('kFalta').textContent=BRL(c.baseRest);
-  $('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s');
+  {// O valor grande e a BASE de contrato (fato), mas sozinho subestima o
+   // desembolso: o INCC ainda vai incidir sobre as 58 parcelas sem boleto. Com os
+   // numeros de hoje sao R$ 79 mil de diferenca, e o cartao nao dizia nada — ao
+   // contrario de "Valor no contrato", que avisa "sem INCC". Mostra os dois.
+   const extra=c.projRest-c.baseRest;
+   $('kFaltaSub').textContent=c.nrest+' parcela'+(c.nrest===1?'':'s')+' restante'+(c.nrest===1?'':'s')+
+     (extra>0.5?' · com INCC projetado: '+BRL(c.projRest):' · sem INCC');}
   $('kIncc').textContent=BRL(c.inccPago);
-  {// o % diz mais que o valor: e o que se compara com a projecao
-   const bp=c.pagoReg>0?c.inccPago/(c.pagoReg-c.inccPago-c.enc.total):0;
+  {// O % diz mais que o valor — mas so se o denominador for a base que REALMENTE
+   // sofre correcao. Os 3 sinais sao a entrada, pagos pelo valor de contrato e sem
+   // INCC; incluir os R$ 71.251,59 deles no denominador diluia o indicador em 11x
+   // (mostrava 0,24% onde o INCC efetivo sobre a base corrigida e 2,69%). E o mesmo
+   // erro ja corrigido em inccObs(), onde o sinal entrava como uma medida de 0%.
+   const baseCorrig=state.itens.reduce((a,r)=>
+     a+((r.tipo!=='aporte'&&r.tipo!=='sinal'&&r.valor_pago!=null)?num(r.valor_base):0),0);
+   const bp=baseCorrig>0?c.inccPago/baseCorrig:0;
    $('kInccSub').textContent=c.inccPago>0&&isFinite(bp)&&bp>0
-     ? PCT(bp*100,2)+' sobre o valor de contrato já pago'
+     ? PCT(bp*100,2)+' sobre a base já corrigida (sinais não levam INCC)'
      : 'já embutido no que pagou';}
   {const e=c.enc;
    $('kEnc').textContent=BRL(e.total);
@@ -2068,6 +2086,13 @@ function render(){
      ? 'multa '+BRL(e.multa)+' + juros e INCC de mora '+BRL(e.juros)+' · '+e.nParc+' parcela'+(e.nParc>1?'s':'')+' em atraso'
      : 'nenhum atraso até aqui';}
   $('kAllin').textContent=BRL(c.allin);
+  {// O subtitulo era fixo em "parcelas + INCC + ITBI", mas o ITBI so entra quando a
+   // saida e por ESCRITURA. O seletor "Forma de saida" tem "Cessao (sem ITBI)" como
+   // padrao e fica na aba Analise — ou seja, o cartao aqui prometia um ITBI que o
+   // numero nao continha, sem que daqui desse para perceber.
+   const ce=custoEscritAtual(), sub=$('kAllinSub');
+   if(sub)sub.textContent=ce>0?'parcelas + INCC + ITBI/registro ('+BRL(ce)+')'
+                              :'parcelas + INCC · saída por cessão, sem ITBI';}
   $('kM2').textContent=BRL(c.baseTotal/AREA)+'/m²';$('kM2Sub').textContent='com tudo: '+BRL(c.allin/AREA)+'/m²';
   {const hm=$('hdM2');if(hm)hm.textContent=BRL(c.baseTotal/AREA);}
   $('cntPagas').textContent=npagas+' pagas';
@@ -2378,14 +2403,17 @@ function renderCharts(c){
 
   const im=c.imP,s=c.s;
   const evs=[...state.itens].filter(r=>r.vencimento).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+  // Usa aPagar(): boleto emitido manda sobre projecao, e sinal nao leva INCC.
+  // Antes o grafico reprojetava tudo por conta propria, divergindo do KPI "Custo
+  // total projetado" (que ja usava aPagar) e ignorando os 4 boletos conhecidos.
   const labels=[],pA=[],rA=[];let pa=0,ra=0;
-  evs.forEach(r=>{const proj=r.tipo==='aporte'?num(r.valor_pago):r.valor_base*Math.pow(1+im,nOf(r.vencimento));
+  evs.forEach(r=>{const proj=r.tipo==='aporte'?num(r.valor_pago):aPagar(r,im);
     pa+=proj;labels.push(r.vencimento.slice(2,7).split('-').reverse().join('/'));
     if(r.valor_pago!=null){ra+=num(r.valor_pago);rA.push(ra);}else rA.push(null);pA.push(pa);});
   charts.acum.data.labels=labels;charts.acum.data.datasets[0].data=pA;charts.acum.data.datasets[1].data=rA;charts.acum.update();
   const years=[2026,2027,2028,2029,2030,2031],real={},proj={};years.forEach(y=>{real[y]=0;proj[y]=0;});
   state.itens.forEach(r=>{if(!r.vencimento)return;const y=+r.vencimento.slice(0,4);if(!years.includes(y))return;
-    const pj=r.tipo==='aporte'?num(r.valor_pago):r.valor_base*Math.pow(1+im,nOf(r.vencimento));
+    const pj=r.tipo==='aporte'?num(r.valor_pago):aPagar(r,im); // mesma regra da curva acumulada
     proj[y]+=pj;if(r.valor_pago!=null)real[y]+=num(r.valor_pago);});
   charts.ano.data.labels=years;charts.ano.data.datasets[0].data=years.map(y=>real[y]);charts.ano.data.datasets[1].data=years.map(y=>proj[y]);charts.ano.update();
   charts.comp.data.datasets[0].data=[c.pagoReg,c.projRest,c.aportes,custoEscritAtual()];charts.comp.update();
