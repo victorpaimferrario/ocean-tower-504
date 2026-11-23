@@ -2337,7 +2337,7 @@ function renderTable(c){
     const efetivo=temBol?num(r.valor_boleto):num(r.valor_base);
     const meio=efetivo/2;
     const tr=document.createElement('tr');const _st=isAp?'aporte':(r.valor_pago!=null?'paga':(vencida?'vencida':''));tr.className=(r.tipo==='semestral'?'semestral ':'')+_st;
-    tr.innerHTML=`<td data-label="Parcela"><b>${esc(r.ref)}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+esc(r.obs)+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração">✎ '+esc(r.updated_by.split('@')[0])+(r.updated_at?' · '+new Date(r.updated_at).toLocaleDateString('pt-BR'):'')+'</span>':''}</td>
+    tr.innerHTML=`<td data-label="Parcela"><b>${esc(r.ref)}</b>${isAp&&r.obs?'<br><span class="proj" style="font-size:11px">'+esc(r.obs)+'</span>':''}${vencida?'<span class="vtag">vencida</span>':''}${r.updated_by?'<br><span class="rastro" title="última alteração deste registro">✎ editado em '+(r.updated_at?new Date(r.updated_at).toLocaleDateString('pt-BR'):'—')+' por '+esc(r.updated_by.split('@')[0])+'</span>':''}</td>
       <td data-label="Vencimento">${r.vencimento?r.vencimento.split('-').reverse().join('/'):'—'}</td>
       <td class="proj" data-label="Base">${isAp?'—':BRL(r.valor_base,2)}</td>
       <td data-label="Boleto">${isAp?'—':'<input type="text" inputmode="decimal" value="'+moneyIn(r.valor_boleto)+'" data-raw="'+(r.valor_boleto!=null?r.valor_boleto:'')+'" data-id="'+r.id+'" data-f="valor_boleto" placeholder="—" title="valor cobrado no boleto (já com INCC)" '+(canEdit?'':'disabled')+'>'}</td>
