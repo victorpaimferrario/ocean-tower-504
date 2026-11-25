@@ -1616,6 +1616,43 @@ function refDoc(r,cat){
   const alvo=cat==='pix_socios'?cheio/2:cheio;
   return {alvo,temBoleto:bol!=null,cheio};
 }
+// PARCELAS QUE VENCEM NO MESMO DIA SAO PAGAS JUNTAS.
+// Desde que os baloes passaram para o dia 25, cada semestral cai no mesmo dia de
+// uma mensal — em 7 datas: 25/11/2026, 25/05/2027, 25/11/2027, 25/05/2028,
+// 25/11/2028, 25/05/2029 e 25/11/2029. Nessas datas chegam DOIS boletos, e o
+// natural e mandar um Pix so para o Dudu, cobrindo os dois. O painel so conhecia a
+// metade de UM boleto, entao o Pix correto de R$ 17.570,56 batia contra a metade
+// da Mensal 3 (R$ 1.785,76) e era acusado como divergencia.
+function irmasDoDia(r){
+  if(!r||!r.vencimento)return r?[r]:[];
+  return state.itens.filter(x=>x.tipo!=='aporte'&&x.vencimento===r.vencimento);
+}
+// Referencia do dia inteiro: soma dos boletos (ou do projetado, onde o boleto
+// ainda nao chegou) de todas as parcelas daquela data.
+function refDocDia(r,cat){
+  const irmas=irmasDoDia(r);
+  const cheio=irmas.reduce((a,x)=>a+((x.valor_boleto!=null&&num(x.valor_boleto)>0)
+    ?num(x.valor_boleto):valorEsperado(x)),0);
+  const todosComBoleto=irmas.every(x=>x.valor_boleto!=null&&num(x.valor_boleto)>0);
+  return {alvo:cat==='pix_socios'?cheio/2:cheio,cheio,n:irmas.length,
+          irmas,temBoleto:todosComBoleto,conjunto:irmas.length>1};
+}
+// Metade de valor impar nao e exata, e a soma das metades arredondadas pode diferir
+// da metade da soma em 1 centavo: metade da Mensal 3 (1.785,76) + metade da
+// Semestral 1 (15.784,81) = 17.570,57, mas metade dos dois boletos juntos =
+// 17.570,56 — que foi exatamente o Pix feito. Os dois tem de ser aceitos.
+function alvosPixDoDia(r){
+  const ind=refDoc(r,'pix_socios'), dia=refDocDia(r,'pix_socios');
+  const out=[{v:Math.round(ind.alvo*100)/100,conjunto:false,n:1,temBoleto:ind.temBoleto}];
+  if(dia.conjunto){
+    const somaMetades=dia.irmas.reduce((a,x)=>a+Math.round(refDoc(x,'pix_socios').alvo*100)/100,0);
+    out.push({v:Math.round(dia.alvo*100)/100,conjunto:true,n:dia.n,temBoleto:dia.temBoleto});
+    const sm=Math.round(somaMetades*100)/100;
+    if(Math.abs(sm-Math.round(dia.alvo*100)/100)>0.001)
+      out.push({v:sm,conjunto:true,n:dia.n,temBoleto:dia.temBoleto});
+  }
+  return out;
+}
 // Num comprovante de PAGAMENTO o total pago e o MAIOR dos valores plausiveis: o
 // documento traz o valor do titulo e, quando houve atraso, o valor pago acima
 // dele (multa + juros). Escolher o mais PROXIMO do esperado pegava justamente o
@@ -1649,9 +1686,21 @@ function _temValor(valores,alvo,pct,abs){return (valores||[]).some(v=>Math.abs(v
 // Parcela em ABERTO vem antes da quitada: um comprovante novo nao pertence a uma
 // parcela ja paga. Antes a busca varria state.itens na ordem do id e podia casar
 // com um Sinal ja liquidado.
+// Dentro de cada grupo (em aberto, depois quitadas) vem primeiro quem TEM boleto e,
+// em seguida, o vencimento mais proximo. Antes a varredura seguia a ordem do id, e
+// uma parcela distante sem boleto podia vencer a disputa por coincidencia: o Pix de
+// R$ 17.570,56 (metade dos dois boletos de 25/11/2026) caiu na Semestral 3, que
+// vence em 25/11/2027 — seu valor projetado para 17 meses a frente dava metade de
+// R$ 17.097,14, e a folga de 3% para parcela sem boleto (R$ 512,91) cobria a
+// diferenca de R$ 473,42. Boleto emitido e numero certo; projecao e estimativa, e
+// estimativa nao deve ganhar de fato.
 function _ordemCasamento(){
   const p=state.itens.filter(it=>it.tipo!=='aporte');
-  return p.filter(it=>it.valor_pago==null).concat(p.filter(it=>it.valor_pago!=null));
+  const semBoleto=it=>(it.valor_boleto!=null&&num(it.valor_boleto)>0)?0:1;
+  const ord=(a,b)=>semBoleto(a)-semBoleto(b)||
+                   String(a.vencimento||'').localeCompare(String(b.vencimento||''));
+  return p.filter(it=>it.valor_pago==null).sort(ord)
+          .concat(p.filter(it=>it.valor_pago!=null).sort(ord));
 }
 function casarPagamento(lido){ // o comprovante traz o valor do boleto (+ encargos, se atrasou)
   if(!lido)return null;const {datas,valores}=lido;
@@ -1668,9 +1717,11 @@ function casarPagamento(lido){ // o comprovante traz o valor do boleto (+ encarg
 function casarPix(lido){ // o Pix p/ Dudu é a METADE do que se paga
   if(!lido)return null;const {valores}=lido;
   for(const it of _ordemCasamento()){
-    const {alvo,temBoleto}=refDoc(it,'pix_socios');
-    // com boleto registrado a metade e exata (so centavo); sem ele, folga do INCC
-    if(alvo>0&&_temValor(valores,alvo,temBoleto?0:0.03,temBoleto?0.02:5))return it;}
+    // tenta a metade desta parcela e, nas datas com duas parcelas, a metade do dia
+    for(const a of alvosPixDoDia(it)){
+      // com boleto registrado a metade e exata (so centavo); sem ele, folga do INCC
+      if(a.v>0&&_temValor(valores,a.v,a.temBoleto?0:0.03,a.temBoleto?0.02:5))return it;}
+  }
   return null;
 }
 function validarDoc(cat,lido,parcela){
@@ -1680,9 +1731,17 @@ function validarDoc(cat,lido,parcela){
   const {alvo,temBoleto}=refDoc(parcela,cat);
   if(cat==='pix_socios'){
     const benefOk=!!texto&&texto.includes('eduardo')&&BENEF_PIX.some(t=>t!=='eduardo'&&texto.includes(t));
-    const valOk=alvo>0&&_temValor(valores,alvo,temBoleto?0:0.05,temBoleto?0.02:10);
+    // Aceita a metade desta parcela OU a metade do dia inteiro: nas datas em que um
+    // balao vence junto de uma mensal, um Pix unico cobre os dois boletos e marcar
+    // "valor ?" num pagamento correto treina a pessoa a ignorar o aviso.
+    const cands=alvosPixDoDia(parcela);
+    let valOk=false,conj=false;
+    for(const a of cands){
+      if(a.v>0&&_temValor(valores,a.v,a.temBoleto?0:0.05,a.temBoleto?0.02:10)){
+        valOk=true;conj=a.conjunto;break;}
+    }
     notas.push(benefOk?'beneficiário ✓':'beneficiário ?');if(!benefOk)alerta=true;
-    notas.push(valOk?'valor ✓':'valor ?');if(!valOk)alerta=true;
+    notas.push(valOk?(conj?'valor ✓ (Pix único do dia)':'valor ✓'):'valor ?');if(!valOk)alerta=true;
   }else if(cat==='comprovante_pago'){
     // o pagamento pode vir acima do boleto por multa e juros de atraso
     const valOk=alvo>0&&(valores||[]).some(v=>v>=alvo*0.98&&v<=alvo*1.6);
@@ -2246,14 +2305,34 @@ function auditaParcela(r,porParcela){
 
   if(pixDocs.length){
     const esp=ref!=null?Math.round(ref*50)/100:null;
-    const c=ref!=null?conciliaDocs(pixDocs,esp,TOL_PIX):{v:null,modo:'sem_ref'};
+    // Tenta a metade desta parcela e, quando o dia tem mais de uma, tambem a
+    // metade do DIA inteiro: um Pix unico cobrindo os dois boletos e o caso
+    // normal nas 7 datas em que um balao vence junto de uma mensal.
+    const alvos=ref!=null?alvosPixDoDia(r):[];
+    let c=null,alvoUsado=null;
+    for(const a of alvos){
+      const t=conciliaDocs(pixDocs,a.v,TOL_PIX);
+      if(t.modo!=='diverge'&&t.modo!=='sem_valor'&&t.modo!=='incompleto'){c=t;alvoUsado=a;break;}
+    }
+    if(!c&&ref!=null){c=conciliaDocs(pixDocs,esp,TOL_PIX);alvoUsado=alvos[0]||null;}
     if(ref==null)               add('Pix p/ Dudu','wait','aguardando o boleto para conferir');
     else if(c.modo==='sem_valor')add('Pix p/ Dudu','wait',(pixDocs.length>1?pixDocs.length+' anexados':'anexado')+', valor não lido');
     else if(c.modo==='incompleto')add('Pix p/ Dudu','wait',BRL(c.soma,2)+' lidos em '+c.n+' de '+
                                      (c.n+c.semValor)+' Pix · '+(c.falta>0?'faltam '+BRL(c.falta,2)+' — informe o valor do anexo não lido'
                                                                           :'confira o anexo não lido'));
-    else if(c.modo==='diverge') add('Pix p/ Dudu','bad',BRL(c.soma,2)+(c.n>1?' ('+c.n+' Pix somados)':'')+
-                                     ' · esperado '+BRL(esp,2)+' ('+(c.soma>esp?'+':'−')+BRL(Math.abs(c.soma-esp),2)+')');
+    else if(c.modo==='diverge'){
+      const dia=refDocDia(r,'pix_socios');
+      add('Pix p/ Dudu','bad',BRL(c.soma,2)+(c.n>1?' ('+c.n+' Pix somados)':'')+
+          ' · esperado '+BRL(esp,2)+' ('+(c.soma>esp?'+':'−')+BRL(Math.abs(c.soma-esp),2)+')'+
+          (dia.conjunto?' — ou '+BRL(Math.round(dia.alvo*100)/100,2)+' se for um Pix único para as '+
+            dia.n+' parcelas de '+r.vencimento.split('-').reverse().join('/'):''));
+    }
+    else if(alvoUsado&&alvoUsado.conjunto){
+      const outras=irmasDoDia(r).filter(x=>String(x.id)!==String(r.id)).map(x=>x.ref).join(' e ');
+      add('Pix p/ Dudu','ok',BRL(c.v,2)+(c.modo==='soma'?' em '+c.n+' Pix':'')+
+          ' = metade dos '+alvoUsado.n+' boletos de '+r.vencimento.split('-').reverse().join('/')+
+          ' (esta + '+outras+') ✓');
+    }
     else add('Pix p/ Dudu','ok',BRL(c.v,2)+(c.modo==='soma'?' em '+c.n+' Pix':'')+
              ' = metade do '+(viaBoleto?'boleto':'valor pago')+' ✓');
   }else add('Pix p/ Dudu','none','não anexado');
