@@ -1335,12 +1335,31 @@ async function uploadFiles(fileList,catId,statusId,inpId){
       const row=state.itens.find(x=>String(x.id)===String(parcela));
       if(row && row.valor_pago==null){
         // folga maior aqui: o comprovante pode incluir juros e multa de atraso
-        const vExtr=lido?valorPagoLido(lido.valores,refDoc(row,'comprovante_pago').alvo):null;
+        let vExtr=lido?valorPagoLido(lido.valores,refDoc(row,'comprovante_pago').alvo):null;
+        // COMPROVANTE QUE QUITA O DIA INTEIRO.
+        // Nas 7 datas em que um balao vence junto de uma mensal, o Dudu pode pagar
+        // os dois boletos e mandar um comprovante so. O valor dele e a SOMA do dia
+        // (R$ 35.141,12 em 25/11/2026), mas valor_pago e por parcela e entra em
+        // todas as somas do painel: gravar o total na Mensal 3 inflaria o custo em
+        // R$ 31.569,61, e grava-lo tambem na Semestral 1 dobraria o erro para
+        // R$ 35.141,12. Cada parcela recebe o SEU boleto; o comprovante fica
+        // anexado nas duas como prova do pagamento conjunto.
+        let conjPag=false;
+        if(vExtr==null&&lido){
+          const dia=refDocDia(row,'comprovante_pago');
+          if(dia.conjunto&&valorPagoLido(lido.valores,Math.round(dia.alvo*100)/100)!=null){
+            conjPag=true; vExtr=Math.round(refDoc(row,'comprovante_pago').alvo*100)/100;
+          }
+        }
         const dts=(lido&&lido.datas)?lido.datas.slice().sort():[];
         let dt=dts.length?dts[dts.length-1]:null, v=null;
         if(vExtr!=null){
           const dtBR=dt?dt.split('-').reverse().join('/'):'';
-          if(confirm('Preencher o pagamento de '+row.ref+'?\n\nValor pago: '+BRL(vExtr,2)+(dtBR?'\nData do pagamento: '+dtBR:'')+'\n\nVocê pode ajustar depois na tabela.'))v=vExtr;
+          const dia=refDocDia(row,'comprovante_pago');
+          const aviso=conjPag?('\n\n⚠️ Este comprovante quita as '+dia.n+' parcelas de '+
+            row.vencimento.split('-').reverse().join('/')+' (total '+BRL(Math.round(dia.alvo*100)/100,2)+
+            ').\nVou lançar apenas o boleto desta parcela. Anexe o mesmo comprovante na outra para fechar as duas.'):'';
+          if(confirm('Preencher o pagamento de '+row.ref+'?\n\nValor pago: '+BRL(vExtr,2)+(dtBR?'\nData do pagamento: '+dtBR:'')+aviso+'\n\nVocê pode ajustar depois na tabela.'))v=vExtr;
         } else {
           const resp=prompt('Comprovante de '+row.ref+' anexado, mas não consegui ler o valor (PDF sem texto ou imagem).\n\nDigite o valor pago em R$ (ex.: 24000 ou 24.000,00), ou cancele:','');
           if(resp!=null && resp.trim()!==''){const sx=resp.trim();v=sx.indexOf(',')>=0?parseFloat(sx.replace(/\./g,'').replace(',','.')):parseFloat(sx.replace(/[^0-9.]/g,''));}
@@ -1641,18 +1660,19 @@ function refDocDia(r,cat){
 // da metade da soma em 1 centavo: metade da Mensal 3 (1.785,76) + metade da
 // Semestral 1 (15.784,81) = 17.570,57, mas metade dos dois boletos juntos =
 // 17.570,56 — que foi exatamente o Pix feito. Os dois tem de ser aceitos.
-function alvosPixDoDia(r){
-  const ind=refDoc(r,'pix_socios'), dia=refDocDia(r,'pix_socios');
+function alvosDoDia(r,cat){
+  const ind=refDoc(r,cat), dia=refDocDia(r,cat);
   const out=[{v:Math.round(ind.alvo*100)/100,conjunto:false,n:1,temBoleto:ind.temBoleto}];
   if(dia.conjunto){
-    const somaMetades=dia.irmas.reduce((a,x)=>a+Math.round(refDoc(x,'pix_socios').alvo*100)/100,0);
+    const somaPartes=dia.irmas.reduce((a,x)=>a+Math.round(refDoc(x,cat).alvo*100)/100,0);
     out.push({v:Math.round(dia.alvo*100)/100,conjunto:true,n:dia.n,temBoleto:dia.temBoleto});
-    const sm=Math.round(somaMetades*100)/100;
-    if(Math.abs(sm-Math.round(dia.alvo*100)/100)>0.001)
-      out.push({v:sm,conjunto:true,n:dia.n,temBoleto:dia.temBoleto});
+    const sp=Math.round(somaPartes*100)/100;
+    if(Math.abs(sp-Math.round(dia.alvo*100)/100)>0.001)
+      out.push({v:sp,conjunto:true,n:dia.n,temBoleto:dia.temBoleto});
   }
   return out;
 }
+const alvosPixDoDia=r=>alvosDoDia(r,'pix_socios');
 // Num comprovante de PAGAMENTO o total pago e o MAIOR dos valores plausiveis: o
 // documento traz o valor do titulo e, quando houve atraso, o valor pago acima
 // dele (multa + juros). Escolher o mais PROXIMO do esperado pegava justamente o
@@ -1707,8 +1727,13 @@ function casarPagamento(lido){ // o comprovante traz o valor do boleto (+ encarg
   const ord=_ordemCasamento();
   // faixa ancorada no BOLETO (ou no projetado pelo INCC), nao no valor de contrato:
   // com base ±20% o comprovante correto deixava de casar por volta da Mensal 30
-  const naFaixa=it=>{const a=refDoc(it,'comprovante_pago').alvo;
-    return a>0&&(valores||[]).some(v=>v>=a*0.97&&v<=a*1.6);};
+  // Aceita o valor desta parcela ou o do DIA inteiro (comprovante unico quitando
+  // os dois boletos da data). Com _ordemCasamento priorizando boleto emitido e
+  // vencimento proximo, um comprovante conjunto de R$ 35.141,12 para 25/11/2026
+  // nao e mais capturado por uma semestral de 2027/2028 cuja faixa projetada por
+  // acaso o contivesse — eram 4 candidatas antes desta correcao.
+  const naFaixa=it=>alvosDoDia(it,'comprovante_pago').some(a=>
+    a.v>0&&(valores||[]).some(v=>v>=a.v*0.97&&v<=a.v*1.6));
   for(const it of ord){if(datas.includes(it.vencimento)&&naFaixa(it))return it;}
   for(const it of ord){if(datas.includes(it.vencimento))return it;}
   for(const it of ord){if(naFaixa(it))return it;}
@@ -2340,21 +2365,36 @@ function auditaParcela(r,porParcela){
   if(pagDocs.length){
     // mesmo tratamento do Pix: o pagamento pode vir em dois comprovantes, e o
     // mesmo comprovante pode ter sido anexado em PDF e em foto
-    const cp=ref!=null?conciliaDocs(pagDocs,ref,0.02):{v:null,modo:'sem_ref'};
+    // Mesma regra do Pix: nas datas com duas parcelas o Dudu pode quitar os dois
+    // boletos de uma vez e mandar UM comprovante. Sem isso, um pagamento correto
+    // de R$ 35.141,12 era conferido contra o boleto da Mensal 3 sozinho
+    // (R$ 3.571,51) e marcado como divergencia.
+    let cp=ref!=null?conciliaDocs(pagDocs,ref,0.02):{v:null,modo:'sem_ref'},pagConj=false;
+    if(ref!=null&&cp.modo==='diverge'){
+      const dia=refDocDia(r,'comprovante_pago');
+      if(dia.conjunto){
+        const t=conciliaDocs(pagDocs,Math.round(dia.alvo*100)/100,0.02);
+        if(t.modo!=='diverge'){cp=t;pagConj=true;}
+      }
+    }
     const v=cp.v;
     if(ref==null)      add('Pagamento','wait',(v!=null?BRL(v,2)+' · ':'')+'aguardando o boleto para conferir');
     else if(cp.modo==='sem_valor')add('Pagamento','wait',(pagDocs.length>1?pagDocs.length+' anexados':'anexado')+', valor não lido');
     else if(cp.modo==='incompleto')add('Pagamento','wait',BRL(cp.soma,2)+' lidos em '+cp.n+' de '+
                                        (cp.n+cp.semValor)+' comprovantes · informe o valor do que faltou');
     else{
-      const d=Math.round((v-ref)*100)/100;
+      // Quando o comprovante cobre o dia inteiro, a referencia e a soma dos
+      // boletos do dia, nao o desta parcela — senao a diferenca vira "pago a mais".
+      const dia2=refDocDia(r,'comprovante_pago');
+      const refUsada=pagConj?Math.round(dia2.alvo*100)/100:ref;
+      const d=Math.round((v-refUsada)*100)/100;
       const dias=diasAtraso(r.vencimento,dPag.data_lida||r.data_pagamento);
-      const alvoTxt=viaBoleto?'boleto':'valor lançado';
+      const alvoTxt=pagConj?('soma dos '+dia2.n+' boletos de '+r.vencimento.split('-').reverse().join('/')):(viaBoleto?'boleto':'valor lançado');
       if(Math.abs(d)<=0.02)                add('Pagamento','ok',BRL(v,2)+' = '+alvoTxt+' ✓');
       // encargo de atraso so se compara quando ha boleto: sem ele nao existe o
       // valor de face contra o qual medir o que foi pago a mais
       else if(d>0&&dias>0&&viaBoleto){
-        const esp=encargosEsperados(ref,r.vencimento,dPag.data_lida||r.data_pagamento);
+        const esp=encargosEsperados(refUsada,r.vencimento,dPag.data_lida||r.data_pagamento);
         const bate=esp&&Math.abs(esp.total-d)<=Math.max(1,d*0.05);
         add('Pagamento',bate?'ok':'bad',BRL(v,2)+' · '+dias+' dia'+(dias>1?'s':'')+' de atraso, '+
             (bate?'encargos conferem com o contrato ✓':'pago a mais '+BRL(d,2)+' mas pela regra seriam '+BRL(esp?esp.total:0,2)));
